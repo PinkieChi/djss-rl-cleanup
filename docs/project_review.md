@@ -16,6 +16,7 @@ The agent is a PyTorch Dueling DQN with target-network updates and prioritized r
 - Preserved the original dependency freeze in UTF-8 as `requirements-freeze.txt`.
 - Replaced the corrupt null-byte dataset with a valid restored `.ini` dataset.
 - Added a deterministic notebook loader for the restored `.ini` dataset.
+- Ran safe evaluation on the restored dataset without training or W&B sync.
 - Fixed the maintenance action index check so maintenance uses the extra action instead of colliding with a dispatching rule.
 - Fixed the total-cost calculation to include tardiness, energy, and maintenance cost instead of double-counting maintenance.
 - Fixed the makespan call in evaluation.
@@ -26,14 +27,13 @@ The agent is a PyTorch Dueling DQN with target-network updates and prioritized r
 ## Recommended Next Improvements
 
 1. Re-export the dataset with stable machine IDs or names instead of Python memory-address tokens.
-2. Extract the notebook into modules:
+2. Investigate why the trained checkpoint does not beat `SPT_DR_O` on the restored dataset.
+3. Extract the notebook into modules:
    - `environment.py`
    - `scenario.py`
    - `agent.py`
    - `training.py`
    - `evaluation.py`
-3. Add smoke tests for environment reset/step behavior and action legality.
-4. Add a deterministic dataset loader so validation does not rely on newly generated random worlds.
+4. Add smoke tests for environment reset/step behavior and action legality.
 5. Add a CLI for training and evaluation instead of relying on notebook cell order.
-6. Add a short experiment report comparing the trained checkpoint with dispatching-rule baselines.
-7. Consider using W&B artifacts or GitHub releases for model checkpoints rather than keeping large experiment outputs in the repo.
+6. Consider using W&B artifacts or GitHub releases for model checkpoints rather than keeping large experiment outputs in the repo.

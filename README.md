@@ -10,6 +10,7 @@ This project explores dynamic job shop scheduling with a Dueling Double-DQN-styl
 - `requirements.txt` - minimal runtime dependencies.
 - `requirements-freeze.txt` - original full environment freeze converted to UTF-8 for reference.
 - `docs/project_review.md` - summary of the project and recommended next improvements.
+- `docs/evaluation_results.md` - latest safe evaluation results on the restored dataset.
 
 ## Setup
 
@@ -39,4 +40,4 @@ WANDB_MODE=offline RUN_DJSS_TRAINING=1 DJSS_EPISODES=100 jupyter notebook
 
 - The restored `.ini` dataset is loadable by the notebook. Exact original machine identity is limited because the source `.ini` stored compatible machines as Python memory-address tokens rather than machine IDs.
 - The notebook still contains most implementation code inline. A stronger next step is extracting environment, agent, training, and evaluation code into testable Python modules.
-- The saved checkpoint may be from a partial training run based on the archived W&B logs.
+- The saved checkpoint evaluated successfully, but it did not beat the strongest simple dispatching baseline on the restored dataset.
