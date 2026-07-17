@@ -6,7 +6,7 @@ This project explores dynamic job shop scheduling with a Dueling Double-DQN-styl
 
 - `DQN_based_Dynamic_Job_Shop_Scheduling_tardiness.ipynb` - main cleaned notebook.
 - `Best_agent_hidden_layers_7neurons_per_layer_[207, 145, 78, 79, 205, 105, 217]_batch_size_32.pth` - saved PyTorch checkpoint included with the original project.
-- `Dataset 50_0.5_0.02.ini` - original dataset artifact. It appears to contain only null bytes; see `docs/dataset_integrity.md`.
+- `Dataset 50_0.5_0.02.ini` - restored valid dataset artifact; see `docs/dataset_integrity.md`.
 - `requirements.txt` - minimal runtime dependencies.
 - `requirements-freeze.txt` - original full environment freeze converted to UTF-8 for reference.
 - `docs/project_review.md` - summary of the project and recommended next improvements.
@@ -36,6 +36,6 @@ WANDB_MODE=offline RUN_DJSS_TRAINING=1 DJSS_EPISODES=100 jupyter notebook
 
 ## Current Caveats
 
-- The included `.ini` dataset is corrupt or blank, so reproducible validation needs a regenerated or restored dataset.
+- The restored `.ini` dataset is present, but the notebook still needs a dataset loader before it can reproduce this exact instance automatically.
 - The notebook still contains most implementation code inline. A stronger next step is extracting environment, agent, training, and evaluation code into testable Python modules.
 - The saved checkpoint may be from a partial training run based on the archived W&B logs.

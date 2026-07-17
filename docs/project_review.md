@@ -14,6 +14,7 @@ The agent is a PyTorch Dueling DQN with target-network updates and prioritized r
 - Disabled W&B smoke tests, evaluation, and training by default behind environment variables.
 - Replaced notebook `pip install` cells with a `requirements.txt` workflow.
 - Preserved the original dependency freeze in UTF-8 as `requirements-freeze.txt`.
+- Replaced the corrupt null-byte dataset with a valid restored `.ini` dataset.
 - Fixed the maintenance action index check so maintenance uses the extra action instead of colliding with a dispatching rule.
 - Fixed the total-cost calculation to include tardiness, energy, and maintenance cost instead of double-counting maintenance.
 - Fixed the makespan call in evaluation.
@@ -23,7 +24,7 @@ The agent is a PyTorch Dueling DQN with target-network updates and prioritized r
 
 ## Recommended Next Improvements
 
-1. Replace or regenerate `Dataset 50_0.5_0.02.ini`.
+1. Add a deterministic dataset loader for `Dataset 50_0.5_0.02.ini`.
 2. Extract the notebook into modules:
    - `environment.py`
    - `scenario.py`
