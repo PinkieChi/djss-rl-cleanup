@@ -36,8 +36,28 @@ Example:
 WANDB_MODE=offline RUN_DJSS_TRAINING=1 DJSS_EPISODES=100 jupyter notebook
 ```
 
+## Terminal Commands
+
+Run a safe smoke test:
+
+```bash
+python -m djss_rl.cli smoke
+```
+
+Run baseline and checkpoint evaluation without training:
+
+```bash
+python -m djss_rl.cli evaluate
+```
+
+Run the smoke test through `unittest` discovery:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
 ## Current Caveats
 
 - The restored `.ini` dataset is loadable by the notebook. Exact original machine identity is limited because the source `.ini` stored compatible machines as Python memory-address tokens rather than machine IDs.
-- The notebook still contains most implementation code inline. A stronger next step is extracting environment, agent, training, and evaluation code into testable Python modules.
+- The project now has a thin CLI around the notebook, but most implementation code still lives inline in the notebook. A stronger next step is extracting environment, agent, training, and evaluation code into testable Python modules.
 - The saved checkpoint evaluated successfully, but it did not beat the strongest simple dispatching baseline on the restored dataset.

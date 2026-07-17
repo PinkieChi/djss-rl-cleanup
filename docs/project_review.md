@@ -17,6 +17,7 @@ The agent is a PyTorch Dueling DQN with target-network updates and prioritized r
 - Replaced the corrupt null-byte dataset with a valid restored `.ini` dataset.
 - Added a deterministic notebook loader for the restored `.ini` dataset.
 - Ran safe evaluation on the restored dataset without training or W&B sync.
+- Added a small `djss_rl` CLI wrapper for repeatable smoke and evaluation runs.
 - Fixed the maintenance action index check so maintenance uses the extra action instead of colliding with a dispatching rule.
 - Fixed the total-cost calculation to include tardiness, energy, and maintenance cost instead of double-counting maintenance.
 - Fixed the makespan call in evaluation.
@@ -28,7 +29,7 @@ The agent is a PyTorch Dueling DQN with target-network updates and prioritized r
 
 1. Re-export the dataset with stable machine IDs or names instead of Python memory-address tokens.
 2. Investigate why the trained checkpoint does not beat `SPT_DR_O` on the restored dataset.
-3. Extract the notebook into modules:
+3. Extract the notebook implementation into the `djss_rl` package:
    - `environment.py`
    - `scenario.py`
    - `agent.py`
