@@ -28,3 +28,21 @@ Evaluation was run with `RUN_DJSS_EVALUATION=1` and `RUN_DJSS_TRAINING` disabled
 | CR_DR_O | 0.8547 | 52h 58m | 74.95% |
 
 Lower tardiness rate is better. On this restored dataset, the trained checkpoint ranked behind `SPT_DR_O` and close to `MRT_DR_O`, which suggests the checkpoint should be treated as a partial or unvalidated model rather than a final best-performing policy.
+
+## Extracted CLI Verification
+
+After extracting the notebook implementation into `djss_rl`, the same safe evaluation was rerun through:
+
+```bash
+python -m djss_rl.cli evaluate
+```
+
+The extracted-module run reproduced the same tardiness rates and makespans shown above.
+
+A one-episode training smoke run was also verified without overwriting the bundled checkpoint:
+
+```bash
+python -m djss_rl.cli train --episodes 1 --output-dir outputs/training
+```
+
+That short run completed with `best_score -124.25`. It is only a training-path smoke test, not a meaningful trained model.

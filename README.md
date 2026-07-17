@@ -7,6 +7,8 @@ This project explores dynamic job shop scheduling with a Dueling Double-DQN-styl
 - `DQN_based_Dynamic_Job_Shop_Scheduling_tardiness.ipynb` - main cleaned notebook.
 - `Best_agent_hidden_layers_7neurons_per_layer_[207, 145, 78, 79, 205, 105, 217]_batch_size_32.pth` - saved PyTorch checkpoint included with the original project.
 - `Dataset 50_0.5_0.02.ini` - restored valid dataset artifact; see `docs/dataset_integrity.md`.
+- `djss_rl/` - extracted Python package for environment construction, agent code, training, and evaluation.
+- `tests/` - smoke tests for notebook and package execution paths.
 - `requirements.txt` - minimal runtime dependencies.
 - `requirements-freeze.txt` - original full environment freeze converted to UTF-8 for reference.
 - `docs/project_review.md` - summary of the project and recommended next improvements.
@@ -50,6 +52,12 @@ Run baseline and checkpoint evaluation without training:
 python -m djss_rl.cli evaluate
 ```
 
+Run one training episode from the restored dataset:
+
+```bash
+python -m djss_rl.cli train --episodes 1 --output-dir outputs/training
+```
+
 Run the smoke test through `unittest` discovery:
 
 ```bash
@@ -59,5 +67,5 @@ python -m unittest discover -s tests -v
 ## Current Caveats
 
 - The restored `.ini` dataset is loadable by the notebook. Exact original machine identity is limited because the source `.ini` stored compatible machines as Python memory-address tokens rather than machine IDs.
-- The project now has a thin CLI around the notebook, but most implementation code still lives inline in the notebook. A stronger next step is extracting environment, agent, training, and evaluation code into testable Python modules.
+- The project now exposes environment, agent, training, and evaluation code through the `djss_rl` package. The notebook remains as the research narrative and compatibility reference.
 - The saved checkpoint evaluated successfully, but it did not beat the strongest simple dispatching baseline on the restored dataset.

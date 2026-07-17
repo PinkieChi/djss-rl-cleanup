@@ -1,4 +1,4 @@
-"""Utilities for running the cleaned DJSS RL notebook safely."""
+"""Importable utilities for the cleaned DJSS RL project."""
 
 __all__ = ["__version__"]
 
