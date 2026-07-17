@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Experiment outputs
+wandb/
+runs/
+outputs/
+*.log
+
+# Generated scheduling data
+Dataset *.ini
+!Dataset 50_0.5_0.02.ini
+
+# Local environment and secrets
+.env
+.env.*
+*.key
+*.pem
+requirements-original-utf16.txt
+
+# OS metadata
+.DS_Store
