@@ -25,6 +25,7 @@ The notebook has been cleaned so expensive or networked actions are opt-in:
 
 - W&B defaults to offline mode. Set `WANDB_MODE=online` only when you want to sync runs.
 - The W&B smoke test is skipped unless `RUN_WANDB_SMOKE_TEST=1`.
+- The restored dataset is loaded by default from `Dataset 50_0.5_0.02.ini`; override with `DJSS_DATASET_PATH`.
 - Baseline and trained-agent evaluation is skipped unless `RUN_DJSS_EVALUATION=1`.
 - Full training is skipped unless `RUN_DJSS_TRAINING=1`.
 
@@ -36,6 +37,6 @@ WANDB_MODE=offline RUN_DJSS_TRAINING=1 DJSS_EPISODES=100 jupyter notebook
 
 ## Current Caveats
 
-- The restored `.ini` dataset is present, but the notebook still needs a dataset loader before it can reproduce this exact instance automatically.
+- The restored `.ini` dataset is loadable by the notebook. Exact original machine identity is limited because the source `.ini` stored compatible machines as Python memory-address tokens rather than machine IDs.
 - The notebook still contains most implementation code inline. A stronger next step is extracting environment, agent, training, and evaluation code into testable Python modules.
 - The saved checkpoint may be from a partial training run based on the archived W&B logs.

@@ -15,6 +15,7 @@ The agent is a PyTorch Dueling DQN with target-network updates and prioritized r
 - Replaced notebook `pip install` cells with a `requirements.txt` workflow.
 - Preserved the original dependency freeze in UTF-8 as `requirements-freeze.txt`.
 - Replaced the corrupt null-byte dataset with a valid restored `.ini` dataset.
+- Added a deterministic notebook loader for the restored `.ini` dataset.
 - Fixed the maintenance action index check so maintenance uses the extra action instead of colliding with a dispatching rule.
 - Fixed the total-cost calculation to include tardiness, energy, and maintenance cost instead of double-counting maintenance.
 - Fixed the makespan call in evaluation.
@@ -24,7 +25,7 @@ The agent is a PyTorch Dueling DQN with target-network updates and prioritized r
 
 ## Recommended Next Improvements
 
-1. Add a deterministic dataset loader for `Dataset 50_0.5_0.02.ini`.
+1. Re-export the dataset with stable machine IDs or names instead of Python memory-address tokens.
 2. Extract the notebook into modules:
    - `environment.py`
    - `scenario.py`
