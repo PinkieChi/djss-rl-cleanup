@@ -40,12 +40,25 @@ class SchedulingResult:
     mean_machine_utilization: float
 
 
-def run_scheduling(env, world, *, name: str, decision_rule: int | None = None, agent: DQNAgent | None = None) -> SchedulingResult:
+def run_scheduling(
+    env,
+    world,
+    *,
+    name: str,
+    decision_rule: int | None = None,
+    agent: DQNAgent | None = None,
+    max_iterations: int = 1_000_000,
+) -> SchedulingResult:
     """Run a full scheduling episode with either a dispatching rule or an agent."""
 
     env.reset()
+    iterations = 0
 
     while not all(job.CRJ == 1 for job in world.jobs):
+        iterations += 1
+        if iterations > max_iterations:
+            raise RuntimeError(f"{name} exceeded {max_iterations} scheduling iterations.")
+
         if not (any(job.legal for job in world.jobs) and any(machine.request for machine in world.machines)):
             env.update_state()
             continue
@@ -121,4 +134,3 @@ def evaluate_all(
     return evaluate_baselines(dataset_path=dataset_path) + [
         evaluate_checkpoint(dataset_path=dataset_path, checkpoint_path=checkpoint_path)
     ]
-

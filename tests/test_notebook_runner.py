@@ -5,7 +5,7 @@ import tempfile
 from djss_rl.datasets import DatasetSpec, generate_dataset
 from djss_rl.environment import make_env
 from djss_rl.evaluation import evaluate_checkpoint, run_scheduling
-from djss_rl.experiments import run_baseline_grid
+from djss_rl.experiments import run_baseline_grid, run_rl_generalization_study
 from djss_rl.notebook_runner import execute_notebook
 
 
@@ -121,6 +121,32 @@ class ExperimentInfrastructureTest(unittest.TestCase):
         self.assertIn("MRT_DR_O", csv_text)
         self.assertIn("SPT_DR_O", csv_text)
         self.assertIn("Experiment Matrix Summary", summary_text)
+
+    def test_tiny_rl_study_writes_results(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path, summary_path = run_rl_generalization_study(
+                output_dir=tmpdir,
+                jobs_values=[6],
+                ddt_values=[0.5],
+                arrival_rates=[50],
+                train_instance_seeds=[11],
+                test_instance_seeds=[22],
+                training_seeds=[33],
+                episodes=1,
+                work_centers=2,
+                machines_per_work_center=2,
+                min_operations=2,
+                max_operations=3,
+                min_processing_time=10,
+                max_processing_time=20,
+            )
+
+            csv_text = csv_path.read_text(encoding="utf-8")
+            summary_text = summary_path.read_text(encoding="utf-8")
+
+        self.assertIn("DQN", csv_text)
+        self.assertIn("SPT_DR_O", csv_text)
+        self.assertIn("RL Generalization Study Summary", summary_text)
 
 
 if __name__ == "__main__":

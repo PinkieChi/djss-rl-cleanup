@@ -11,7 +11,19 @@ import statistics
 from scipy.stats import wilcoxon
 
 from .datasets import DatasetSpec, generate_dataset
-from .evaluation import DEFAULT_CHECKPOINT, SchedulingResult, evaluate_baselines, evaluate_checkpoint
+from .evaluation import (
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_CHECKPOINT,
+    DEFAULT_HIDDEN_LAYERS,
+    DEFAULT_NEURONS_PER_LAYER,
+    HEURISTICS,
+    SchedulingResult,
+    evaluate_baselines,
+    evaluate_checkpoint,
+    run_scheduling,
+)
+from .environment import make_env
+from .training import train_agents
 
 
 @dataclass(frozen=True)
@@ -65,6 +77,31 @@ def _result_to_row(instance: ExperimentInstance, result: SchedulingResult) -> di
         "corrective_maintenance_actions": repr(result.corrective_maintenance_actions),
         "preventive_maintenance_actions": repr(result.preventive_maintenance_actions),
         "energy_consumption": repr(result.energy_consumption),
+        "status": "ok",
+        "error": "",
+    }
+
+
+def _error_row(instance: ExperimentInstance, *, method: str, error: Exception) -> dict[str, str]:
+    return {
+        "instance_id": instance.instance_id,
+        "dataset_path": str(instance.dataset_path),
+        "seed": str(instance.seed),
+        "jobs": str(instance.spec.jobs),
+        "machines": str(instance.spec.machines),
+        "work_centers": str(instance.spec.work_centers),
+        "machines_per_work_center": str(instance.spec.machines_per_work_center),
+        "ddt": str(instance.spec.ddt),
+        "arrival_rate": str(instance.spec.arrival_rate),
+        "method": method,
+        "tardiness_rate": "nan",
+        "makespan": "nan",
+        "mean_machine_utilization": "nan",
+        "corrective_maintenance_actions": "nan",
+        "preventive_maintenance_actions": "nan",
+        "energy_consumption": "nan",
+        "status": "error",
+        "error": str(error),
     }
 
 
@@ -152,29 +189,295 @@ def run_baseline_grid(
         max_compatible_machines=max_compatible_machines,
     )
 
-    rows: list[dict[str, str]] = []
-    for instance in instances:
-        results = evaluate_baselines(dataset_path=instance.dataset_path)
-        if include_checkpoint:
-            results.append(evaluate_checkpoint(dataset_path=instance.dataset_path, checkpoint_path=checkpoint_path))
-        rows.extend(_result_to_row(instance, result) for result in results)
-
     csv_path = output_path / "results.csv"
-    fieldnames = list(rows[0].keys()) if rows else []
-    with csv_path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    rows: list[dict[str, str]] = []
+    completed: set[tuple[str, str]] = set()
+    if csv_path.exists():
+        with csv_path.open(newline="", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle))
+        completed = {(row["instance_id"], row["method"]) for row in rows}
+
+    for instance in instances:
+        for index, heuristic in enumerate(HEURISTICS):
+            if (instance.instance_id, heuristic) in completed:
+                continue
+            try:
+                env = make_env(dataset_path=instance.dataset_path)
+                result = run_scheduling(env, env.world, name=heuristic, decision_rule=index)
+                rows.append(_result_to_row(instance, result))
+            except Exception as exc:  # noqa: BLE001 - experiment rows should capture failures.
+                rows.append(_error_row(instance, method=heuristic, error=exc))
+            completed.add((instance.instance_id, heuristic))
+            _write_rows(csv_path, rows)
+        if include_checkpoint:
+            method = "Ours"
+            if (instance.instance_id, method) not in completed:
+                try:
+                    result = evaluate_checkpoint(dataset_path=instance.dataset_path, checkpoint_path=checkpoint_path)
+                    rows.append(_result_to_row(instance, result))
+                except Exception as exc:  # noqa: BLE001 - experiment rows should capture failures.
+                    rows.append(_error_row(instance, method=method, error=exc))
+                completed.add((instance.instance_id, method))
+                _write_rows(csv_path, rows)
 
     summary_path = output_path / "summary.md"
     summary_path.write_text(make_markdown_summary(rows), encoding="utf-8")
     return csv_path, summary_path
 
 
+def _write_rows(csv_path: Path, rows: list[dict[str, str]]) -> None:
+    fieldnames = list(rows[0].keys()) if rows else []
+    for row in rows:
+        for key in row:
+            if key not in fieldnames:
+                fieldnames.append(key)
+    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _split_instance_rows(
+    instances: list[ExperimentInstance],
+    *,
+    split: str,
+    results: list[SchedulingResult],
+    training_seed: int | None = None,
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for instance, result in zip(instances, results):
+        row = _result_to_row(instance, result)
+        row["split"] = split
+        row["training_seed"] = "" if training_seed is None else str(training_seed)
+        rows.append(row)
+    return rows
+
+
+def run_rl_generalization_study(
+    *,
+    output_dir: str | Path,
+    jobs_values: list[int],
+    ddt_values: list[float],
+    arrival_rates: list[int],
+    train_instance_seeds: list[int],
+    test_instance_seeds: list[int],
+    training_seeds: list[int],
+    episodes: int = 1000,
+    work_centers: int = 5,
+    machines_per_work_center: int = 3,
+    initial_job_fraction: float = 0.5,
+    min_operations: int = 6,
+    max_operations: int = 10,
+    min_processing_time: int = 60,
+    max_processing_time: int = 120,
+    min_compatible_machines: int = 1,
+    max_compatible_machines: int | None = None,
+) -> tuple[Path, Path]:
+    """Train DQN agents on generated instances and evaluate on held-out instances."""
+
+    output_path = Path(output_dir)
+    train_instances = build_instances(
+        output_dir=output_path / "train",
+        jobs_values=jobs_values,
+        ddt_values=ddt_values,
+        arrival_rates=arrival_rates,
+        seeds=train_instance_seeds,
+        work_centers=work_centers,
+        machines_per_work_center=machines_per_work_center,
+        initial_job_fraction=initial_job_fraction,
+        min_operations=min_operations,
+        max_operations=max_operations,
+        min_processing_time=min_processing_time,
+        max_processing_time=max_processing_time,
+        min_compatible_machines=min_compatible_machines,
+        max_compatible_machines=max_compatible_machines,
+    )
+    test_instances = build_instances(
+        output_dir=output_path / "test",
+        jobs_values=jobs_values,
+        ddt_values=ddt_values,
+        arrival_rates=arrival_rates,
+        seeds=test_instance_seeds,
+        work_centers=work_centers,
+        machines_per_work_center=machines_per_work_center,
+        initial_job_fraction=initial_job_fraction,
+        min_operations=min_operations,
+        max_operations=max_operations,
+        min_processing_time=min_processing_time,
+        max_processing_time=max_processing_time,
+        min_compatible_machines=min_compatible_machines,
+        max_compatible_machines=max_compatible_machines,
+    )
+
+    rows: list[dict[str, str]] = []
+    baseline_results_by_instance: dict[str, list[SchedulingResult]] = {}
+    for instance in test_instances:
+        baseline_results_by_instance[instance.instance_id] = []
+        for index, heuristic in enumerate(HEURISTICS):
+            try:
+                env = make_env(dataset_path=instance.dataset_path)
+                result = run_scheduling(env, env.world, name=heuristic, decision_rule=index)
+                baseline_results_by_instance[instance.instance_id].append(result)
+                row = _result_to_row(instance, result)
+            except Exception as exc:  # noqa: BLE001 - experiment rows should capture failures.
+                row = _error_row(instance, method=heuristic, error=exc)
+            row["split"] = "test"
+            row["training_seed"] = ""
+            rows.append(row)
+
+    train_dataset_paths = [instance.dataset_path for instance in train_instances]
+    checkpoint_name = (
+        f"Best_agent_hidden_layers_{DEFAULT_HIDDEN_LAYERS}"
+        f"neurons_per_layer_{DEFAULT_NEURONS_PER_LAYER}_batch_size_{DEFAULT_BATCH_SIZE}.pth"
+    )
+    training_summary_rows = []
+    for training_seed in training_seeds:
+        agent_output_dir = output_path / "agents" / f"seed-{training_seed}"
+        best_score = train_agents(
+            episodes=episodes,
+            dataset_paths=train_dataset_paths,
+            output_dir=agent_output_dir,
+            seed=training_seed,
+        )
+        checkpoint_path = agent_output_dir / checkpoint_name
+        training_summary_rows.append(
+            {
+                "training_seed": str(training_seed),
+                "episodes": str(episodes),
+                "best_training_score": repr(best_score),
+                "checkpoint_path": str(checkpoint_path),
+            }
+        )
+        for instance in test_instances:
+            try:
+                result = evaluate_checkpoint(dataset_path=instance.dataset_path, checkpoint_path=checkpoint_path)
+                row = _result_to_row(instance, result)
+            except Exception as exc:  # noqa: BLE001 - experiment rows should capture failures.
+                row = _error_row(instance, method="DQN", error=exc)
+            row["method"] = "DQN"
+            row["split"] = "test"
+            row["training_seed"] = str(training_seed)
+            rows.append(row)
+
+    csv_path = output_path / "rl_results.csv"
+    _write_rows(csv_path, rows)
+    _write_rows(output_path / "training_summary.csv", training_summary_rows)
+    summary_path = output_path / "rl_summary.md"
+    summary_path.write_text(make_rl_markdown_summary(rows, training_summary_rows), encoding="utf-8")
+    return csv_path, summary_path
+
+
+def make_rl_markdown_summary(rows: list[dict[str, str]], training_rows: list[dict[str, str]]) -> str:
+    method_rows: dict[str, list[dict[str, str]]] = defaultdict(list)
+    baseline_by_instance: dict[str, dict[str, str]] = {}
+    for row in rows:
+        if row["split"] != "test" or row.get("status", "ok") != "ok":
+            continue
+        method_rows[row["method"]].append(row)
+        if row["method"] == "SPT_DR_O":
+            baseline_by_instance[row["instance_id"]] = row
+
+    summary_rows = []
+    for method, values in method_rows.items():
+        tardiness_values = [float(row["tardiness_rate"]) for row in values]
+        summary_rows.append(
+            {
+                "method": method,
+                "n": len(values),
+                "mean_tardiness": _mean(tardiness_values),
+                "std_tardiness": _std(tardiness_values),
+                "ci95_tardiness": _ci95(tardiness_values),
+                "mean_makespan": _mean([float(row["makespan"]) for row in values]),
+                "mean_utilization": _mean([float(row["mean_machine_utilization"]) for row in values]),
+            }
+        )
+    summary_rows.sort(key=lambda row: row["mean_tardiness"])
+
+    lines = [
+        "# RL Generalization Study Summary",
+        "",
+        f"Training runs: {len(training_rows)}",
+        f"Test result rows: {sum(len(values) for values in method_rows.values())}",
+        "",
+        "## Training Runs",
+        "",
+        "| Training seed | Episodes | Best training score | Checkpoint |",
+        "|---:|---:|---:|---|",
+    ]
+    for row in training_rows:
+        lines.append(
+            "| {} | {} | {} | {} |".format(
+                row["training_seed"],
+                row["episodes"],
+                row["best_training_score"],
+                row["checkpoint_path"],
+            )
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Test Ranking",
+            "",
+            "| Rank | Method | n | Mean tardiness | Std | 95% CI | Mean makespan | Mean utilization |",
+            "|---:|---|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for rank, row in enumerate(summary_rows, 1):
+        lines.append(
+            "| {} | {} | {} | {} | {} | {} | {} | {}% |".format(
+                rank,
+                row["method"],
+                row["n"],
+                _format_float(row["mean_tardiness"]),
+                _format_float(row["std_tardiness"]),
+                _format_float(row["ci95_tardiness"]),
+                _format_float(row["mean_makespan"]),
+                _format_float(row["mean_utilization"]),
+            )
+        )
+
+    if "DQN" in method_rows and baseline_by_instance:
+        differences = []
+        wins = losses = ties = 0
+        for row in method_rows["DQN"]:
+            baseline = baseline_by_instance[row["instance_id"]]
+            difference = float(row["tardiness_rate"]) - float(baseline["tardiness_rate"])
+            differences.append(difference)
+            if difference < 0:
+                wins += 1
+            elif difference > 0:
+                losses += 1
+            else:
+                ties += 1
+        lines.extend(
+            [
+                "",
+                "## DQN Against SPT",
+                "",
+                "| Compared pairs | Mean tardiness difference | Wilcoxon p | Wins | Losses | Ties |",
+                "|---:|---:|---:|---:|---:|---:|",
+                "| {} | {} | {} | {} | {} | {} |".format(
+                    len(differences),
+                    _format_float(_mean(differences)),
+                    _format_float(_wilcoxon_p_value(differences)),
+                    wins,
+                    losses,
+                    ties,
+                ),
+            ]
+        )
+
+    return "\n".join(lines) + "\n"
+
+
 def make_markdown_summary(rows: list[dict[str, str]], *, reference_method: str = "SPT_DR_O") -> str:
     by_method: dict[str, list[dict[str, str]]] = defaultdict(list)
     by_instance: dict[str, dict[str, dict[str, str]]] = defaultdict(dict)
+    error_rows = [row for row in rows if row.get("status", "ok") != "ok"]
     for row in rows:
+        if row.get("status", "ok") != "ok":
+            continue
         by_method[row["method"]].append(row)
         by_instance[row["instance_id"]][row["method"]] = row
 
@@ -200,6 +503,7 @@ def make_markdown_summary(rows: list[dict[str, str]], *, reference_method: str =
         "# Experiment Matrix Summary",
         "",
         f"Evaluated {len(by_instance)} generated instances and {len(by_method)} methods.",
+        f"Failed result rows: {len(error_rows)}.",
         "",
         "Lower tardiness is better. The confidence interval is a normal-approximation 95% CI across evaluated instances.",
         "",

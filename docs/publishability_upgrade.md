@@ -1,6 +1,6 @@
 # Publishability Upgrade
 
-This project now has the first piece of a publishable experiment workflow: generated instance matrices with stable machine IDs, all dispatching-rule baselines, CSV results, Markdown summaries, confidence intervals, and paired Wilcoxon comparisons against `SPT_DR_O`.
+This project now has the first pieces of a publishable experiment workflow: generated instance matrices with stable machine IDs, all dispatching-rule baselines, CSV results, Markdown summaries, confidence intervals, paired Wilcoxon comparisons against `SPT_DR_O`, and a held-out DQN generalization study.
 
 ## What Changed
 
@@ -8,8 +8,9 @@ This project now has the first piece of a publishable experiment workflow: gener
 - Extended the dataset loader to accept generated machine IDs such as `{1: 42, 3: 57}` while preserving compatibility with the original memory-address dataset.
 - Added `python -m djss_rl.cli generate-dataset`.
 - Added `python -m djss_rl.cli experiment`.
+- Added `python -m djss_rl.cli rl-study` for generated train/test instance studies.
 - Added experiment summaries with mean tardiness, standard deviation, 95% confidence intervals, and paired comparison tables.
-- Added tests for generated dataset loading and tiny experiment-grid execution.
+- Added tests for generated dataset loading, tiny experiment-grid execution, and tiny held-out RL-study execution.
 
 ## Pilot Matrix
 
@@ -45,12 +46,22 @@ Paired against `SPT_DR_O`, the closest competitor was `MRT_DR_O` with mean tardi
 
 This pilot is not publication evidence yet because it is intentionally small. It is a validation of the experiment machinery. The pattern is useful: `SPT_DR_O` remains a strong baseline, so any RL method should be judged against SPT across a broad generated matrix, not only against weaker rules.
 
+## Completed Larger Runs
+
+The larger baseline matrix and held-out DQN study have now been run. A concise record is available in `docs/publishability_results.md`.
+
+Key result:
+
+- The 135-instance baseline matrix found `SPT_DR_O` had the best average tardiness: `0.320584`.
+- The held-out DQN study trained 3 seeds for 1,000 episodes each and evaluated them on 8 held-out instances.
+- DQN mean held-out tardiness was `0.282789`, close to `SPT_DR_O` at `0.273815`, but not better. The paired comparison against SPT had Wilcoxon `p = 0.224728`.
+
 ## Next Publishable Step
 
-Run the same matrix at a larger scale, then train and evaluate the DQN on matched train/validation/test splits:
+Use these results as the baseline for improving the RL method itself. The next full paper-quality study should train with validation-based checkpointing, tune reward/state design, run more training seeds, and evaluate on larger held-out matrices:
 
 ```bash
 python3 -m djss_rl.cli experiment --output-dir outputs/publishability-baseline-large --jobs-values 20,50,100 --ddt-values 0.5,1.0,1.5 --arrival-rates 50,100,200 --seeds 101,202,303,404,505
 ```
 
-After that, the RL side should be upgraded to evaluate trained checkpoints on held-out generated instances, using at least 10 training seeds per configuration.
+The `rl-study` command provides the held-out evaluation path. For a publishable claim, expand it to at least 10 training seeds per configuration and add a validation split so model selection is separated from final test reporting.

@@ -8,7 +8,7 @@ from pathlib import Path
 from .datasets import DatasetSpec, generate_dataset
 from .environment import DEFAULT_DATASET, make_env
 from .evaluation import DEFAULT_CHECKPOINT, evaluate_all
-from .experiments import run_baseline_grid
+from .experiments import run_baseline_grid, run_rl_generalization_study
 from .training import train_agents
 
 
@@ -103,6 +103,23 @@ def main() -> None:
     experiment_parser.add_argument("--include-checkpoint", action="store_true", help="Also evaluate the saved DQN checkpoint.")
     experiment_parser.add_argument("--checkpoint", default=DEFAULT_CHECKPOINT, help="Saved PyTorch checkpoint path.")
 
+    rl_parser = subparsers.add_parser("rl-study", help="Train DQN on generated instances and evaluate held-out generalization.")
+    rl_parser.add_argument("--output-dir", default="outputs/rl-generalization", help="Directory for generated data, checkpoints, and results.")
+    rl_parser.add_argument("--jobs-values", default="20", help="Comma-separated job counts.")
+    rl_parser.add_argument("--ddt-values", default="0.5,1.0", help="Comma-separated due-date tightness values.")
+    rl_parser.add_argument("--arrival-rates", default="50,100", help="Comma-separated arrival-rate values.")
+    rl_parser.add_argument("--train-instance-seeds", default="101,202", help="Comma-separated dataset seeds for training instances.")
+    rl_parser.add_argument("--test-instance-seeds", default="303,404", help="Comma-separated dataset seeds for held-out test instances.")
+    rl_parser.add_argument("--training-seeds", default="11,22,33", help="Comma-separated random seeds for DQN training.")
+    rl_parser.add_argument("--episodes", type=int, default=1000)
+    rl_parser.add_argument("--work-centers", type=int, default=5)
+    rl_parser.add_argument("--machines-per-work-center", type=int, default=3)
+    rl_parser.add_argument("--initial-job-fraction", type=float, default=0.5)
+    rl_parser.add_argument("--min-operations", type=int, default=6)
+    rl_parser.add_argument("--max-operations", type=int, default=10)
+    rl_parser.add_argument("--min-processing-time", type=int, default=60)
+    rl_parser.add_argument("--max-processing-time", type=int, default=120)
+
     args = parser.parse_args()
     project_dir = Path(args.project_dir)
     dataset_path = project_dir / args.dataset
@@ -164,6 +181,27 @@ def main() -> None:
             checkpoint_path=project_dir / args.checkpoint,
         )
         print("\nEXPERIMENT_RUN_OK")
+        print("results_csv", csv_path)
+        print("summary_markdown", summary_path)
+    elif args.command == "rl-study":
+        csv_path, summary_path = run_rl_generalization_study(
+            output_dir=project_dir / args.output_dir,
+            jobs_values=_parse_int_list(args.jobs_values),
+            ddt_values=_parse_float_list(args.ddt_values),
+            arrival_rates=_parse_int_list(args.arrival_rates),
+            train_instance_seeds=_parse_int_list(args.train_instance_seeds),
+            test_instance_seeds=_parse_int_list(args.test_instance_seeds),
+            training_seeds=_parse_int_list(args.training_seeds),
+            episodes=args.episodes,
+            work_centers=args.work_centers,
+            machines_per_work_center=args.machines_per_work_center,
+            initial_job_fraction=args.initial_job_fraction,
+            min_operations=args.min_operations,
+            max_operations=args.max_operations,
+            min_processing_time=args.min_processing_time,
+            max_processing_time=args.max_processing_time,
+        )
+        print("\nRL_STUDY_RUN_OK")
         print("results_csv", csv_path)
         print("summary_markdown", summary_path)
 

@@ -1287,7 +1287,7 @@ class DQNAgent:
 
 
 # ---- Extracted notebook cell 34 ----
-def train_agents(hidden_layers, neurons_per_layer, batch_size, episodes=1000, eval_every=25, dataset_path=None):
+def train_agents(hidden_layers, neurons_per_layer, batch_size, episodes=1000, eval_every=25, dataset_path=None, dataset_paths=None):
 
     scores = []
     best_score = -np.inf  # Initialize best_score appropriately
@@ -1298,12 +1298,18 @@ def train_agents(hidden_layers, neurons_per_layer, batch_size, episodes=1000, ev
     print("........................................Collecting Experience........................................")
 
     for e in range(EPISODES):
-        env = make_env(dataset_path=dataset_path)
+        episode_dataset_path = random.choice(dataset_paths) if dataset_paths else dataset_path
+        env = make_env(dataset_path=episode_dataset_path)
         world = env.world
         done = False
         reward_epo = 0  # Cumulative reward of the episode
+        iterations = 0
 
         while not done:
+            iterations += 1
+            if iterations > 1000000:
+                raise RuntimeError(f"Training episode {e} exceeded 1000000 scheduling iterations.")
+
             # Check for available jobs and idle machines
             if not (any(job.legal for job in world.jobs) and any(machine.request for machine in world.machines)):
                 env.update_state()  # Move the shop floor forward if no machines are ready or no legal jobs

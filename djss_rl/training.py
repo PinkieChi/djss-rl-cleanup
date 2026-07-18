@@ -23,6 +23,7 @@ def train_agents(
     episodes: int = 1000,
     eval_every: int = 25,
     dataset_path: str | Path | None = DEFAULT_DATASET,
+    dataset_paths: list[str | Path] | None = None,
     output_dir: str | Path = "outputs/training",
     seed: int | None = None,
     use_wandb: bool = False,
@@ -37,10 +38,11 @@ def train_agents(
             torch.cuda.manual_seed_all(seed)
 
     resolved_dataset_path = Path(dataset_path).resolve() if dataset_path is not None else None
+    resolved_dataset_paths = [Path(path).resolve() for path in dataset_paths] if dataset_paths else None
     output_path = Path(output_dir).resolve()
     output_path.mkdir(parents=True, exist_ok=True)
 
-    env = make_env(dataset_path=resolved_dataset_path)
+    env = make_env(dataset_path=resolved_dataset_paths[0] if resolved_dataset_paths else resolved_dataset_path)
     core.state_dim = env.observation_space.shape[0]
     core.output_dim = env.action_space.n
     wandb_mode = os.getenv("WANDB_MODE", "offline") if use_wandb else "disabled"
@@ -55,6 +57,7 @@ def train_agents(
             "episodes": episodes,
             "eval_every": eval_every,
             "dataset_path": str(resolved_dataset_path) if resolved_dataset_path is not None else None,
+            "dataset_paths": [str(path) for path in resolved_dataset_paths] if resolved_dataset_paths is not None else None,
             "output_dir": str(output_path),
             "seed": seed,
         },
@@ -70,6 +73,7 @@ def train_agents(
             episodes=episodes,
             eval_every=eval_every,
             dataset_path=str(resolved_dataset_path) if resolved_dataset_path is not None else None,
+            dataset_paths=[str(path) for path in resolved_dataset_paths] if resolved_dataset_paths is not None else None,
         )
     finally:
         os.chdir(previous_cwd)
