@@ -55,7 +55,7 @@ python -m djss_rl.cli evaluate
 Run one training episode from the restored dataset:
 
 ```bash
-python -m djss_rl.cli train --episodes 1 --output-dir outputs/training
+python -m djss_rl.cli train --episodes 1 --seed 101 --output-dir outputs/training
 ```
 
 Run the smoke test through `unittest` discovery:

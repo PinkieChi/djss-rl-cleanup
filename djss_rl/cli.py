@@ -60,6 +60,7 @@ def main() -> None:
     train_parser.add_argument("--episodes", type=int, default=1, help="Number of training episodes.")
     train_parser.add_argument("--eval-every", type=int, default=25, help="Evaluation cadence retained for compatibility.")
     train_parser.add_argument("--output-dir", default="outputs/training", help="Directory for generated training checkpoints.")
+    train_parser.add_argument("--seed", type=int, default=None, help="Optional random seed for reproducible training.")
     train_parser.add_argument("--wandb", action="store_true", help="Initialize an offline W&B run for training logs.")
 
     args = parser.parse_args()
@@ -81,6 +82,7 @@ def main() -> None:
             eval_every=args.eval_every,
             dataset_path=dataset_path,
             output_dir=project_dir / args.output_dir,
+            seed=args.seed,
             use_wandb=args.wandb,
         )
         print("\nTRAIN_RUN_OK")

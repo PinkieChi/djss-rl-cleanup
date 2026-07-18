@@ -48,3 +48,5 @@ python -m djss_rl.cli train --episodes 1 --output-dir outputs/training
 That short run completed with `best_score -124.25`. It is only a training-path smoke test, not a meaningful trained model.
 
 For the full 1000-episode training result, see `docs/full_training_results.md`.
+
+For the three-seed replication study, see `docs/seed_study_results.md`.

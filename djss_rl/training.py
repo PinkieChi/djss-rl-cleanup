@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import os
+import random
 from pathlib import Path
 
+import numpy as np
+import torch
 import wandb
 
 from . import core
@@ -21,9 +24,17 @@ def train_agents(
     eval_every: int = 25,
     dataset_path: str | Path | None = DEFAULT_DATASET,
     output_dir: str | Path = "outputs/training",
+    seed: int | None = None,
     use_wandb: bool = False,
 ) -> float:
     """Train the DQN agent after initializing notebook-era globals explicitly."""
+
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
 
     resolved_dataset_path = Path(dataset_path).resolve() if dataset_path is not None else None
     output_path = Path(output_dir).resolve()
@@ -45,6 +56,7 @@ def train_agents(
             "eval_every": eval_every,
             "dataset_path": str(resolved_dataset_path) if resolved_dataset_path is not None else None,
             "output_dir": str(output_path),
+            "seed": seed,
         },
     )
 
