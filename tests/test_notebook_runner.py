@@ -1,8 +1,11 @@
 import unittest
 from pathlib import Path
+import tempfile
 
+from djss_rl.datasets import DatasetSpec, generate_dataset
 from djss_rl.environment import make_env
 from djss_rl.evaluation import evaluate_checkpoint, run_scheduling
+from djss_rl.experiments import run_baseline_grid
 from djss_rl.notebook_runner import execute_notebook
 
 
@@ -70,6 +73,54 @@ class ExtractedModuleSmokeTest(unittest.TestCase):
         self.assertEqual(result.name, "Ours")
         self.assertAlmostEqual(result.tardiness_rate, 0.6403940886699507)
         self.assertEqual(result.makespan, 3055)
+
+
+class ExperimentInfrastructureTest(unittest.TestCase):
+    def test_generated_stable_id_dataset_loads(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dataset_path = Path(tmpdir) / "generated.ini"
+            generate_dataset(
+                dataset_path,
+                spec=DatasetSpec(
+                    jobs=6,
+                    work_centers=2,
+                    machines_per_work_center=2,
+                    min_operations=2,
+                    max_operations=3,
+                    min_processing_time=10,
+                    max_processing_time=20,
+                ),
+                seed=11,
+            )
+
+            env = make_env(dataset_path=dataset_path)
+
+        self.assertEqual(len(env.world.jobs), 6)
+        self.assertEqual(len(env.world.machines), 4)
+        self.assertEqual(env.observation_space.shape, (14,))
+
+    def test_tiny_baseline_grid_writes_results(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path, summary_path = run_baseline_grid(
+                output_dir=tmpdir,
+                jobs_values=[6],
+                ddt_values=[0.5],
+                arrival_rates=[50],
+                seeds=[11],
+                work_centers=2,
+                machines_per_work_center=2,
+                min_operations=2,
+                max_operations=3,
+                min_processing_time=10,
+                max_processing_time=20,
+            )
+
+            csv_text = csv_path.read_text(encoding="utf-8")
+            summary_text = summary_path.read_text(encoding="utf-8")
+
+        self.assertIn("MRT_DR_O", csv_text)
+        self.assertIn("SPT_DR_O", csv_text)
+        self.assertIn("Experiment Matrix Summary", summary_text)
 
 
 if __name__ == "__main__":

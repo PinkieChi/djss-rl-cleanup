@@ -35,3 +35,4 @@ The agent is a PyTorch Dueling DQN with target-network updates and prioritized r
 4. Add regression tests for all dispatching-rule results and selected maintenance-enabled scenarios.
 5. Consider using W&B artifacts or GitHub releases for model checkpoints rather than keeping large experiment outputs in the repo.
 6. Re-run training with a fixed seed and compare against dispatching-rule baselines before treating the checkpoint as the preferred policy.
+7. Expand the new generated-instance experiment matrix and use it as the train/validation/test backbone for publishable RL comparisons.

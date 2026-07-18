@@ -1,0 +1,285 @@
+"""Experiment matrix runners and summary writers."""
+
+from __future__ import annotations
+
+import csv
+from collections import defaultdict
+from dataclasses import dataclass
+from pathlib import Path
+import statistics
+
+from scipy.stats import wilcoxon
+
+from .datasets import DatasetSpec, generate_dataset
+from .evaluation import DEFAULT_CHECKPOINT, SchedulingResult, evaluate_baselines, evaluate_checkpoint
+
+
+@dataclass(frozen=True)
+class ExperimentInstance:
+    instance_id: str
+    dataset_path: Path
+    spec: DatasetSpec
+    seed: int
+
+
+def _format_float(value: float) -> str:
+    return f"{value:.6f}"
+
+
+def _mean(values: list[float]) -> float:
+    return statistics.fmean(values) if values else 0.0
+
+
+def _std(values: list[float]) -> float:
+    return statistics.stdev(values) if len(values) > 1 else 0.0
+
+
+def _ci95(values: list[float]) -> float:
+    if len(values) <= 1:
+        return 0.0
+    return 1.96 * _std(values) / (len(values) ** 0.5)
+
+
+def _wilcoxon_p_value(values: list[float]) -> float:
+    nonzero_values = [value for value in values if value != 0]
+    if len(nonzero_values) < 2:
+        return float("nan")
+    return float(wilcoxon(nonzero_values).pvalue)
+
+
+def _result_to_row(instance: ExperimentInstance, result: SchedulingResult) -> dict[str, str]:
+    return {
+        "instance_id": instance.instance_id,
+        "dataset_path": str(instance.dataset_path),
+        "seed": str(instance.seed),
+        "jobs": str(instance.spec.jobs),
+        "machines": str(instance.spec.machines),
+        "work_centers": str(instance.spec.work_centers),
+        "machines_per_work_center": str(instance.spec.machines_per_work_center),
+        "ddt": str(instance.spec.ddt),
+        "arrival_rate": str(instance.spec.arrival_rate),
+        "method": result.name,
+        "tardiness_rate": repr(result.tardiness_rate),
+        "makespan": repr(result.makespan),
+        "mean_machine_utilization": repr(result.mean_machine_utilization),
+        "corrective_maintenance_actions": repr(result.corrective_maintenance_actions),
+        "preventive_maintenance_actions": repr(result.preventive_maintenance_actions),
+        "energy_consumption": repr(result.energy_consumption),
+    }
+
+
+def build_instances(
+    *,
+    output_dir: str | Path,
+    jobs_values: list[int],
+    ddt_values: list[float],
+    arrival_rates: list[int],
+    seeds: list[int],
+    work_centers: int = 5,
+    machines_per_work_center: int = 3,
+    initial_job_fraction: float = 0.5,
+    min_operations: int = 6,
+    max_operations: int = 10,
+    min_processing_time: int = 60,
+    max_processing_time: int = 120,
+    min_compatible_machines: int = 1,
+    max_compatible_machines: int | None = None,
+) -> list[ExperimentInstance]:
+    datasets_dir = Path(output_dir) / "datasets"
+    instances: list[ExperimentInstance] = []
+    for jobs in jobs_values:
+        for ddt in ddt_values:
+            for arrival_rate in arrival_rates:
+                for seed in seeds:
+                    spec = DatasetSpec(
+                        jobs=jobs,
+                        work_centers=work_centers,
+                        machines_per_work_center=machines_per_work_center,
+                        ddt=ddt,
+                        arrival_rate=arrival_rate,
+                        initial_job_fraction=initial_job_fraction,
+                        min_operations=min_operations,
+                        max_operations=max_operations,
+                        min_processing_time=min_processing_time,
+                        max_processing_time=max_processing_time,
+                        min_compatible_machines=min_compatible_machines,
+                        max_compatible_machines=max_compatible_machines,
+                    )
+                    instance_id = f"j{jobs}_m{spec.machines}_ddt{ddt:g}_arr{arrival_rate}_seed{seed}"
+                    dataset_path = datasets_dir / f"{instance_id}.ini"
+                    generate_dataset(dataset_path, spec=spec, seed=seed)
+                    instances.append(ExperimentInstance(instance_id, dataset_path, spec, seed))
+    return instances
+
+
+def run_baseline_grid(
+    *,
+    output_dir: str | Path,
+    jobs_values: list[int],
+    ddt_values: list[float],
+    arrival_rates: list[int],
+    seeds: list[int],
+    work_centers: int = 5,
+    machines_per_work_center: int = 3,
+    initial_job_fraction: float = 0.5,
+    min_operations: int = 6,
+    max_operations: int = 10,
+    min_processing_time: int = 60,
+    max_processing_time: int = 120,
+    min_compatible_machines: int = 1,
+    max_compatible_machines: int | None = None,
+    include_checkpoint: bool = False,
+    checkpoint_path: str | Path = DEFAULT_CHECKPOINT,
+) -> tuple[Path, Path]:
+    """Generate datasets, evaluate methods, and write CSV plus Markdown summaries."""
+
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    instances = build_instances(
+        output_dir=output_path,
+        jobs_values=jobs_values,
+        ddt_values=ddt_values,
+        arrival_rates=arrival_rates,
+        seeds=seeds,
+        work_centers=work_centers,
+        machines_per_work_center=machines_per_work_center,
+        initial_job_fraction=initial_job_fraction,
+        min_operations=min_operations,
+        max_operations=max_operations,
+        min_processing_time=min_processing_time,
+        max_processing_time=max_processing_time,
+        min_compatible_machines=min_compatible_machines,
+        max_compatible_machines=max_compatible_machines,
+    )
+
+    rows: list[dict[str, str]] = []
+    for instance in instances:
+        results = evaluate_baselines(dataset_path=instance.dataset_path)
+        if include_checkpoint:
+            results.append(evaluate_checkpoint(dataset_path=instance.dataset_path, checkpoint_path=checkpoint_path))
+        rows.extend(_result_to_row(instance, result) for result in results)
+
+    csv_path = output_path / "results.csv"
+    fieldnames = list(rows[0].keys()) if rows else []
+    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    summary_path = output_path / "summary.md"
+    summary_path.write_text(make_markdown_summary(rows), encoding="utf-8")
+    return csv_path, summary_path
+
+
+def make_markdown_summary(rows: list[dict[str, str]], *, reference_method: str = "SPT_DR_O") -> str:
+    by_method: dict[str, list[dict[str, str]]] = defaultdict(list)
+    by_instance: dict[str, dict[str, dict[str, str]]] = defaultdict(dict)
+    for row in rows:
+        by_method[row["method"]].append(row)
+        by_instance[row["instance_id"]][row["method"]] = row
+
+    summary_rows = []
+    for method, method_rows in by_method.items():
+        tardiness_values = [float(row["tardiness_rate"]) for row in method_rows]
+        makespans = [float(row["makespan"]) for row in method_rows]
+        utilizations = [float(row["mean_machine_utilization"]) for row in method_rows]
+        summary_rows.append(
+            {
+                "method": method,
+                "n": len(method_rows),
+                "mean_tardiness": _mean(tardiness_values),
+                "std_tardiness": _std(tardiness_values),
+                "ci95_tardiness": _ci95(tardiness_values),
+                "mean_makespan": _mean(makespans),
+                "mean_utilization": _mean(utilizations),
+            }
+        )
+    summary_rows.sort(key=lambda row: row["mean_tardiness"])
+
+    lines = [
+        "# Experiment Matrix Summary",
+        "",
+        f"Evaluated {len(by_instance)} generated instances and {len(by_method)} methods.",
+        "",
+        "Lower tardiness is better. The confidence interval is a normal-approximation 95% CI across evaluated instances.",
+        "",
+        "## Method Ranking",
+        "",
+        "| Rank | Method | n | Mean tardiness | Std | 95% CI | Mean makespan | Mean utilization |",
+        "|---:|---|---:|---:|---:|---:|---:|---:|",
+    ]
+
+    for rank, row in enumerate(summary_rows, 1):
+        lines.append(
+            "| {} | {} | {} | {} | {} | {} | {} | {}% |".format(
+                rank,
+                row["method"],
+                row["n"],
+                _format_float(row["mean_tardiness"]),
+                _format_float(row["std_tardiness"]),
+                _format_float(row["ci95_tardiness"]),
+                _format_float(row["mean_makespan"]),
+                _format_float(row["mean_utilization"]),
+            )
+        )
+
+    if reference_method in by_method:
+        lines.extend(
+            [
+                "",
+                f"## Paired Comparison Against `{reference_method}`",
+                "",
+                "| Method | Compared instances | Mean tardiness difference | Wilcoxon p | Wins | Losses | Ties |",
+                "|---|---:|---:|---:|---:|---:|---:|",
+            ]
+        )
+        paired_rows = []
+        for method in by_method:
+            if method == reference_method:
+                continue
+            differences = []
+            wins = losses = ties = 0
+            for instance_methods in by_instance.values():
+                if reference_method not in instance_methods or method not in instance_methods:
+                    continue
+                method_value = float(instance_methods[method]["tardiness_rate"])
+                reference_value = float(instance_methods[reference_method]["tardiness_rate"])
+                difference = method_value - reference_value
+                differences.append(difference)
+                if difference < 0:
+                    wins += 1
+                elif difference > 0:
+                    losses += 1
+                else:
+                    ties += 1
+            paired_rows.append((method, differences, wins, losses, ties))
+        paired_rows.sort(key=lambda item: _mean(item[1]) if item[1] else 0.0)
+        for method, differences, wins, losses, ties in paired_rows:
+            lines.append(
+                "| {} | {} | {} | {} | {} | {} | {} |".format(
+                    method,
+                    len(differences),
+                    _format_float(_mean(differences)),
+                    _format_float(_wilcoxon_p_value(differences)),
+                    wins,
+                    losses,
+                    ties,
+                )
+            )
+
+    lines.extend(
+        [
+            "",
+            "## Generated Conditions",
+            "",
+            "| Jobs | Machines | DDT | Arrival rate | Seeds |",
+            "|---:|---:|---:|---:|---|",
+        ]
+    )
+    conditions: dict[tuple[str, str, str, str], set[str]] = defaultdict(set)
+    for row in rows:
+        conditions[(row["jobs"], row["machines"], row["ddt"], row["arrival_rate"])].add(row["seed"])
+    for (jobs, machines, ddt, arrival_rate), condition_seeds in sorted(conditions.items()):
+        lines.append(f"| {jobs} | {machines} | {ddt} | {arrival_rate} | {', '.join(sorted(condition_seeds))} |")
+
+    return "\n".join(lines) + "\n"

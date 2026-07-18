@@ -52,6 +52,18 @@ Run baseline and checkpoint evaluation without training:
 python -m djss_rl.cli evaluate
 ```
 
+Generate a stable-ID synthetic dataset:
+
+```bash
+python -m djss_rl.cli generate-dataset --output outputs/generated/example.ini --jobs 20 --seed 101
+```
+
+Run a generated-instance baseline experiment matrix:
+
+```bash
+python -m djss_rl.cli experiment --jobs-values 20 --ddt-values 0.5,1.0,1.5 --arrival-rates 50,100,200 --seeds 101,202,303
+```
+
 Run one training episode from the restored dataset:
 
 ```bash
@@ -69,3 +81,4 @@ python -m unittest discover -s tests -v
 - The restored `.ini` dataset is loadable by the notebook. Exact original machine identity is limited because the source `.ini` stored compatible machines as Python memory-address tokens rather than machine IDs.
 - The project now exposes environment, agent, training, and evaluation code through the `djss_rl` package. The notebook remains as the research narrative and compatibility reference.
 - The saved checkpoint evaluated successfully, but it did not beat the strongest simple dispatching baseline on the restored dataset.
+- Publication-strength claims need generated or benchmark-derived instance matrices, multi-seed runs, and statistical summaries. The `experiment` command now provides the first baseline matrix workflow.

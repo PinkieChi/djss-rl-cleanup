@@ -5,8 +5,10 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from .datasets import DatasetSpec, generate_dataset
 from .environment import DEFAULT_DATASET, make_env
 from .evaluation import DEFAULT_CHECKPOINT, evaluate_all
+from .experiments import run_baseline_grid
 from .training import train_agents
 
 
@@ -31,6 +33,14 @@ def _print_result(result) -> None:
             result.mean_machine_utilization,
         )
     )
+
+
+def _parse_int_list(value: str) -> list[int]:
+    return [int(item.strip()) for item in value.split(",") if item.strip()]
+
+
+def _parse_float_list(value: str) -> list[float]:
+    return [float(item.strip()) for item in value.split(",") if item.strip()]
 
 
 def main() -> None:
@@ -63,6 +73,36 @@ def main() -> None:
     train_parser.add_argument("--seed", type=int, default=None, help="Optional random seed for reproducible training.")
     train_parser.add_argument("--wandb", action="store_true", help="Initialize an offline W&B run for training logs.")
 
+    generate_parser = subparsers.add_parser("generate-dataset", help="Generate a stable-ID dataset .ini file.")
+    generate_parser.add_argument("--output", required=True, help="Destination .ini path.")
+    generate_parser.add_argument("--jobs", type=int, default=50)
+    generate_parser.add_argument("--work-centers", type=int, default=5)
+    generate_parser.add_argument("--machines-per-work-center", type=int, default=3)
+    generate_parser.add_argument("--ddt", type=float, default=0.5)
+    generate_parser.add_argument("--arrival-rate", type=int, default=50)
+    generate_parser.add_argument("--seed", type=int, default=101)
+    generate_parser.add_argument("--initial-job-fraction", type=float, default=0.5)
+    generate_parser.add_argument("--min-operations", type=int, default=6)
+    generate_parser.add_argument("--max-operations", type=int, default=10)
+    generate_parser.add_argument("--min-processing-time", type=int, default=60)
+    generate_parser.add_argument("--max-processing-time", type=int, default=120)
+
+    experiment_parser = subparsers.add_parser("experiment", help="Run a generated-instance baseline experiment matrix.")
+    experiment_parser.add_argument("--output-dir", default="outputs/experiment-matrix", help="Directory for datasets and result files.")
+    experiment_parser.add_argument("--jobs-values", default="20", help="Comma-separated job counts.")
+    experiment_parser.add_argument("--ddt-values", default="0.5,1.0,1.5", help="Comma-separated due-date tightness values.")
+    experiment_parser.add_argument("--arrival-rates", default="50,100,200", help="Comma-separated arrival-rate values.")
+    experiment_parser.add_argument("--seeds", default="101,202,303", help="Comma-separated instance-generation seeds.")
+    experiment_parser.add_argument("--work-centers", type=int, default=5)
+    experiment_parser.add_argument("--machines-per-work-center", type=int, default=3)
+    experiment_parser.add_argument("--initial-job-fraction", type=float, default=0.5)
+    experiment_parser.add_argument("--min-operations", type=int, default=6)
+    experiment_parser.add_argument("--max-operations", type=int, default=10)
+    experiment_parser.add_argument("--min-processing-time", type=int, default=60)
+    experiment_parser.add_argument("--max-processing-time", type=int, default=120)
+    experiment_parser.add_argument("--include-checkpoint", action="store_true", help="Also evaluate the saved DQN checkpoint.")
+    experiment_parser.add_argument("--checkpoint", default=DEFAULT_CHECKPOINT, help="Saved PyTorch checkpoint path.")
+
     args = parser.parse_args()
     project_dir = Path(args.project_dir)
     dataset_path = project_dir / args.dataset
@@ -87,6 +127,45 @@ def main() -> None:
         )
         print("\nTRAIN_RUN_OK")
         print("best_score", score)
+    elif args.command == "generate-dataset":
+        generated_path = generate_dataset(
+            project_dir / args.output,
+            spec=DatasetSpec(
+                jobs=args.jobs,
+                work_centers=args.work_centers,
+                machines_per_work_center=args.machines_per_work_center,
+                ddt=args.ddt,
+                arrival_rate=args.arrival_rate,
+                initial_job_fraction=args.initial_job_fraction,
+                min_operations=args.min_operations,
+                max_operations=args.max_operations,
+                min_processing_time=args.min_processing_time,
+                max_processing_time=args.max_processing_time,
+            ),
+            seed=args.seed,
+        )
+        print("\nDATASET_GENERATION_OK")
+        print("dataset_path", generated_path)
+    elif args.command == "experiment":
+        csv_path, summary_path = run_baseline_grid(
+            output_dir=project_dir / args.output_dir,
+            jobs_values=_parse_int_list(args.jobs_values),
+            ddt_values=_parse_float_list(args.ddt_values),
+            arrival_rates=_parse_int_list(args.arrival_rates),
+            seeds=_parse_int_list(args.seeds),
+            work_centers=args.work_centers,
+            machines_per_work_center=args.machines_per_work_center,
+            initial_job_fraction=args.initial_job_fraction,
+            min_operations=args.min_operations,
+            max_operations=args.max_operations,
+            min_processing_time=args.min_processing_time,
+            max_processing_time=args.max_processing_time,
+            include_checkpoint=args.include_checkpoint,
+            checkpoint_path=project_dir / args.checkpoint,
+        )
+        print("\nEXPERIMENT_RUN_OK")
+        print("results_csv", csv_path)
+        print("summary_markdown", summary_path)
 
 
 if __name__ == "__main__":
