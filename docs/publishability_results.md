@@ -1,6 +1,6 @@
 # Publishability Experiment Results
 
-This document records the larger generated-instance experiments run on July 18, 2026. The raw CSV, logs, generated datasets, and trained checkpoints are stored under `outputs/` locally and are packaged separately for backup.
+This document records the larger generated-instance experiments run on July 18-19, 2026. The raw CSV, logs, generated datasets, and trained checkpoints are stored under `outputs/` locally and are packaged separately for backup.
 
 ## Large Baseline Matrix
 
@@ -67,8 +67,41 @@ DQN by training seed:
 
 Against `SPT_DR_O`, DQN had a mean tardiness difference of `+0.008975` across 24 paired comparisons, Wilcoxon `p = 0.224728`, with 9 wins, 11 losses, and 4 ties.
 
+## Validation-Selected Dense-Reward DQN Study
+
+Command:
+
+```bash
+python3 -m djss_rl.cli rl-study --output-dir outputs/rl-validation-dense-20260718 --jobs-values 20 --ddt-values 0.5,1.0 --arrival-rates 50,100 --train-instance-seeds 101,202 --validation-instance-seeds 505 --test-instance-seeds 303,404 --training-seeds 44,55,66 --episodes 500 --validation-every 50 --reward-mode dense_tardiness --train-start 500
+```
+
+This study added a separate validation split and selected each checkpoint by validation tardiness rather than training reward. It used a dense tardiness-delta reward and trained 3 independent seeds for 500 episodes each. All 144 result rows completed successfully: 48 validation rows and 96 held-out test rows.
+
+| Training seed | Episodes | Best training score | Best validation tardiness |
+|---:|---:|---:|---:|
+| 44 | 500 | 6.691530 | 0.237952 |
+| 55 | 500 | 6.310180 | 0.254518 |
+| 66 | 500 | 6.681602 | 0.251506 |
+
+Held-out test ranking:
+
+| Rank | Method | n | Mean tardiness | Std | 95% CI | Mean makespan | Mean utilization |
+|---:|---|---:|---:|---:|---:|---:|---:|
+| 1 | ATC_DR_O | 8 | 0.266695 | 0.233715 | 0.161956 | 1504.875000 | 62.739723% |
+| 2 | SPT_DR_O | 8 | 0.273815 | 0.224499 | 0.155570 | 1510.250000 | 62.532371% |
+| 3 | DQN | 24 | 0.277797 | 0.217299 | 0.086938 | 1510.791667 | 63.146751% |
+| 4 | SLK_DR_O | 8 | 0.282543 | 0.241066 | 0.167050 | 1521.125000 | 63.153824% |
+| 5 | LRT_DR_O | 8 | 0.283339 | 0.242643 | 0.168143 | 1591.000000 | 60.317549% |
+| 6 | LSPO_DR_O | 8 | 0.290489 | 0.245108 | 0.169851 | 1539.875000 | 62.592743% |
+| 7 | MCR_DR_O | 8 | 0.291275 | 0.243959 | 0.169055 | 1531.000000 | 62.283247% |
+| 8 | MRT_DR_O | 8 | 0.292883 | 0.222949 | 0.154496 | 1517.250000 | 64.168158% |
+| 9 | EDD_DR_O | 8 | 0.294460 | 0.237167 | 0.164348 | 1559.625000 | 61.370243% |
+| 10 | CR_DR_O | 8 | 0.314264 | 0.248298 | 0.172062 | 1569.250000 | 61.730648% |
+
+DQN improved from the previous held-out mean tardiness `0.282789` to `0.277797`. It beat weaker baselines such as `CR_DR_O`, `EDD_DR_O`, `MRT_DR_O`, `MCR_DR_O`, and `LSPO_DR_O` in paired tests, but it still did not beat `SPT_DR_O` or `ATC_DR_O`. Against `SPT_DR_O`, DQN had mean difference `+0.003983`, Wilcoxon `p = 0.427246`, with 5 wins, 7 losses, and 12 ties.
+
 ## Interpretation
 
-The expanded baseline matrix shows that `SPT_DR_O` is the strongest broad default baseline in this implementation. The held-out DQN study is encouraging as an engineering milestone because the agent runs reproducibly and generalizes into the neighborhood of strong dispatching rules, but it does not yet support a publication claim that DQN outperforms simple heuristics.
+The expanded baseline matrix shows that `SPT_DR_O` is the strongest broad default baseline in this implementation. The held-out DQN studies are encouraging as engineering milestones because the agent runs reproducibly and generalizes into the neighborhood of strong dispatching rules. Validation-based checkpointing and dense reward shaping improved the DQN result, but not enough to support a publication claim that DQN outperforms simple heuristics.
 
-The next publishable step is not another small run of the same model. The research contribution should improve the RL formulation: reward shaping aligned with tardiness reduction, richer state features, validation-based checkpoint selection, more training seeds, and comparisons on larger held-out matrices that include standard benchmark families where possible.
+The next publishable step is not another small run of the same model. The research contribution should improve the RL formulation further: richer state features, stronger action masking or rule-selection structure, validation-based hyperparameter tuning, more training seeds, and comparisons on larger held-out matrices that include standard benchmark families where possible.

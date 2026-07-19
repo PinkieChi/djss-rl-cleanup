@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,7 +19,6 @@ from .evaluation import (
     DEFAULT_NEURONS_PER_LAYER,
     HEURISTICS,
     SchedulingResult,
-    evaluate_baselines,
     evaluate_checkpoint,
     run_scheduling,
 )
@@ -188,6 +188,27 @@ def run_baseline_grid(
         min_compatible_machines=min_compatible_machines,
         max_compatible_machines=max_compatible_machines,
     )
+    _write_json(
+        output_path / "study_config.json",
+        {
+            "study_type": "baseline_grid",
+            "jobs_values": jobs_values,
+            "ddt_values": ddt_values,
+            "arrival_rates": arrival_rates,
+            "seeds": seeds,
+            "work_centers": work_centers,
+            "machines_per_work_center": machines_per_work_center,
+            "initial_job_fraction": initial_job_fraction,
+            "min_operations": min_operations,
+            "max_operations": max_operations,
+            "min_processing_time": min_processing_time,
+            "max_processing_time": max_processing_time,
+            "min_compatible_machines": min_compatible_machines,
+            "max_compatible_machines": max_compatible_machines,
+            "include_checkpoint": include_checkpoint,
+            "checkpoint_path": str(checkpoint_path),
+        },
+    )
 
     csv_path = output_path / "results.csv"
     rows: list[dict[str, str]] = []
@@ -226,6 +247,7 @@ def run_baseline_grid(
 
 
 def _write_rows(csv_path: Path, rows: list[dict[str, str]]) -> None:
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = list(rows[0].keys()) if rows else []
     for row in rows:
         for key in row:
@@ -237,20 +259,9 @@ def _write_rows(csv_path: Path, rows: list[dict[str, str]]) -> None:
         writer.writerows(rows)
 
 
-def _split_instance_rows(
-    instances: list[ExperimentInstance],
-    *,
-    split: str,
-    results: list[SchedulingResult],
-    training_seed: int | None = None,
-) -> list[dict[str, str]]:
-    rows: list[dict[str, str]] = []
-    for instance, result in zip(instances, results):
-        row = _result_to_row(instance, result)
-        row["split"] = split
-        row["training_seed"] = "" if training_seed is None else str(training_seed)
-        rows.append(row)
-    return rows
+def _write_json(path: Path, data: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
 
 
 def run_rl_generalization_study(
@@ -262,7 +273,15 @@ def run_rl_generalization_study(
     train_instance_seeds: list[int],
     test_instance_seeds: list[int],
     training_seeds: list[int],
+    validation_instance_seeds: list[int] | None = None,
     episodes: int = 1000,
+    validation_every: int | None = None,
+    reward_mode: str = "sharp",
+    gamma: float = 0.99,
+    epsilon_decay: float = 0.995,
+    epsilon_min: float = 0.01,
+    learning_rate: float = 0.001,
+    train_start: int = 1000,
     work_centers: int = 5,
     machines_per_work_center: int = 3,
     initial_job_fraction: float = 0.5,
@@ -276,6 +295,37 @@ def run_rl_generalization_study(
     """Train DQN agents on generated instances and evaluate on held-out instances."""
 
     output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    _write_json(
+        output_path / "study_config.json",
+        {
+            "study_type": "rl_generalization",
+            "jobs_values": jobs_values,
+            "ddt_values": ddt_values,
+            "arrival_rates": arrival_rates,
+            "train_instance_seeds": train_instance_seeds,
+            "validation_instance_seeds": validation_instance_seeds or [],
+            "test_instance_seeds": test_instance_seeds,
+            "training_seeds": training_seeds,
+            "episodes": episodes,
+            "validation_every": validation_every,
+            "reward_mode": reward_mode,
+            "gamma": gamma,
+            "epsilon_decay": epsilon_decay,
+            "epsilon_min": epsilon_min,
+            "learning_rate": learning_rate,
+            "train_start": train_start,
+            "work_centers": work_centers,
+            "machines_per_work_center": machines_per_work_center,
+            "initial_job_fraction": initial_job_fraction,
+            "min_operations": min_operations,
+            "max_operations": max_operations,
+            "min_processing_time": min_processing_time,
+            "max_processing_time": max_processing_time,
+            "min_compatible_machines": min_compatible_machines,
+            "max_compatible_machines": max_compatible_machines,
+        },
+    )
     train_instances = build_instances(
         output_dir=output_path / "train",
         jobs_values=jobs_values,
@@ -291,6 +341,26 @@ def run_rl_generalization_study(
         max_processing_time=max_processing_time,
         min_compatible_machines=min_compatible_machines,
         max_compatible_machines=max_compatible_machines,
+    )
+    validation_instances = (
+        build_instances(
+            output_dir=output_path / "validation",
+            jobs_values=jobs_values,
+            ddt_values=ddt_values,
+            arrival_rates=arrival_rates,
+            seeds=validation_instance_seeds,
+            work_centers=work_centers,
+            machines_per_work_center=machines_per_work_center,
+            initial_job_fraction=initial_job_fraction,
+            min_operations=min_operations,
+            max_operations=max_operations,
+            min_processing_time=min_processing_time,
+            max_processing_time=max_processing_time,
+            min_compatible_machines=min_compatible_machines,
+            max_compatible_machines=max_compatible_machines,
+        )
+        if validation_instance_seeds
+        else []
     )
     test_instances = build_instances(
         output_dir=output_path / "test",
@@ -310,22 +380,21 @@ def run_rl_generalization_study(
     )
 
     rows: list[dict[str, str]] = []
-    baseline_results_by_instance: dict[str, list[SchedulingResult]] = {}
-    for instance in test_instances:
-        baseline_results_by_instance[instance.instance_id] = []
-        for index, heuristic in enumerate(HEURISTICS):
-            try:
-                env = make_env(dataset_path=instance.dataset_path)
-                result = run_scheduling(env, env.world, name=heuristic, decision_rule=index)
-                baseline_results_by_instance[instance.instance_id].append(result)
-                row = _result_to_row(instance, result)
-            except Exception as exc:  # noqa: BLE001 - experiment rows should capture failures.
-                row = _error_row(instance, method=heuristic, error=exc)
-            row["split"] = "test"
-            row["training_seed"] = ""
-            rows.append(row)
+    for split, instances in (("validation", validation_instances), ("test", test_instances)):
+        for instance in instances:
+            for index, heuristic in enumerate(HEURISTICS):
+                try:
+                    env = make_env(dataset_path=instance.dataset_path)
+                    result = run_scheduling(env, env.world, name=heuristic, decision_rule=index)
+                    row = _result_to_row(instance, result)
+                except Exception as exc:  # noqa: BLE001 - experiment rows should capture failures.
+                    row = _error_row(instance, method=heuristic, error=exc)
+                row["split"] = split
+                row["training_seed"] = ""
+                rows.append(row)
 
     train_dataset_paths = [instance.dataset_path for instance in train_instances]
+    validation_dataset_paths = [instance.dataset_path for instance in validation_instances]
     checkpoint_name = (
         f"Best_agent_hidden_layers_{DEFAULT_HIDDEN_LAYERS}"
         f"neurons_per_layer_{DEFAULT_NEURONS_PER_LAYER}_batch_size_{DEFAULT_BATCH_SIZE}.pth"
@@ -333,31 +402,68 @@ def run_rl_generalization_study(
     training_summary_rows = []
     for training_seed in training_seeds:
         agent_output_dir = output_path / "agents" / f"seed-{training_seed}"
-        best_score = train_agents(
+        training_metadata = train_agents(
             episodes=episodes,
             dataset_paths=train_dataset_paths,
+            validation_dataset_paths=validation_dataset_paths or None,
+            validation_every=validation_every,
+            reward_mode=reward_mode,
+            gamma=gamma,
+            epsilon_decay=epsilon_decay,
+            epsilon_min=epsilon_min,
+            learning_rate=learning_rate,
+            train_start=train_start,
             output_dir=agent_output_dir,
             seed=training_seed,
+            return_metadata=True,
         )
-        checkpoint_path = agent_output_dir / checkpoint_name
+        if not isinstance(training_metadata, dict):
+            training_metadata = {
+                "best_training_score": training_metadata,
+                "best_validation_tardiness": None,
+                "checkpoint_selection_metric": "training_reward",
+                "reward_mode": reward_mode,
+                "gamma": gamma,
+                "epsilon_decay": epsilon_decay,
+                "epsilon_min": epsilon_min,
+                "learning_rate": learning_rate,
+                "train_start": train_start,
+                "checkpoint_path": str(agent_output_dir / checkpoint_name),
+                "training_history_path": str(agent_output_dir / "training_history.csv"),
+            }
+        checkpoint_path = Path(str(training_metadata.get("checkpoint_path") or agent_output_dir / checkpoint_name))
         training_summary_rows.append(
             {
                 "training_seed": str(training_seed),
                 "episodes": str(episodes),
-                "best_training_score": repr(best_score),
+                "best_training_score": repr(training_metadata.get("best_training_score")),
+                "best_validation_tardiness": (
+                    ""
+                    if training_metadata.get("best_validation_tardiness") is None
+                    else repr(training_metadata.get("best_validation_tardiness"))
+                ),
+                "checkpoint_selection_metric": str(training_metadata.get("checkpoint_selection_metric")),
+                "reward_mode": str(training_metadata.get("reward_mode")),
+                "gamma": str(training_metadata.get("gamma")),
+                "epsilon_decay": str(training_metadata.get("epsilon_decay")),
+                "epsilon_min": str(training_metadata.get("epsilon_min")),
+                "learning_rate": str(training_metadata.get("learning_rate")),
+                "train_start": str(training_metadata.get("train_start")),
                 "checkpoint_path": str(checkpoint_path),
+                "training_history_path": str(training_metadata.get("training_history_path")),
             }
         )
-        for instance in test_instances:
-            try:
-                result = evaluate_checkpoint(dataset_path=instance.dataset_path, checkpoint_path=checkpoint_path)
-                row = _result_to_row(instance, result)
-            except Exception as exc:  # noqa: BLE001 - experiment rows should capture failures.
-                row = _error_row(instance, method="DQN", error=exc)
-            row["method"] = "DQN"
-            row["split"] = "test"
-            row["training_seed"] = str(training_seed)
-            rows.append(row)
+        for split, instances in (("validation", validation_instances), ("test", test_instances)):
+            for instance in instances:
+                try:
+                    result = evaluate_checkpoint(dataset_path=instance.dataset_path, checkpoint_path=checkpoint_path)
+                    row = _result_to_row(instance, result)
+                except Exception as exc:  # noqa: BLE001 - experiment rows should capture failures.
+                    row = _error_row(instance, method="DQN", error=exc)
+                row["method"] = "DQN"
+                row["split"] = split
+                row["training_seed"] = str(training_seed)
+                rows.append(row)
 
     csv_path = output_path / "rl_results.csv"
     _write_rows(csv_path, rows)
@@ -369,13 +475,16 @@ def run_rl_generalization_study(
 
 def make_rl_markdown_summary(rows: list[dict[str, str]], training_rows: list[dict[str, str]]) -> str:
     method_rows: dict[str, list[dict[str, str]]] = defaultdict(list)
-    baseline_by_instance: dict[str, dict[str, str]] = {}
+    baseline_by_method_instance: dict[str, dict[str, dict[str, str]]] = defaultdict(dict)
+    split_counts: dict[str, int] = defaultdict(int)
+    error_rows = [row for row in rows if row.get("status", "ok") != "ok"]
     for row in rows:
-        if row["split"] != "test" or row.get("status", "ok") != "ok":
+        split_counts[row.get("split", "test")] += 1
+        if row.get("split", "test") != "test" or row.get("status", "ok") != "ok":
             continue
         method_rows[row["method"]].append(row)
-        if row["method"] == "SPT_DR_O":
-            baseline_by_instance[row["instance_id"]] = row
+        if row["method"] != "DQN":
+            baseline_by_method_instance[row["method"]][row["instance_id"]] = row
 
     summary_rows = []
     for method, values in method_rows.items():
@@ -398,21 +507,62 @@ def make_rl_markdown_summary(rows: list[dict[str, str]], training_rows: list[dic
         "",
         f"Training runs: {len(training_rows)}",
         f"Test result rows: {sum(len(values) for values in method_rows.values())}",
+        f"Failed result rows: {len(error_rows)}",
         "",
-        "## Training Runs",
+        "## Rows by Split",
         "",
-        "| Training seed | Episodes | Best training score | Checkpoint |",
-        "|---:|---:|---:|---|",
+        "| Split | Rows |",
+        "|---|---:|",
     ]
+    for split, count in sorted(split_counts.items()):
+        lines.append(f"| {split} | {count} |")
+
+    lines.extend(
+        [
+            "",
+            "## Training Runs",
+            "",
+            "| Training seed | Episodes | Best training score | Best validation tardiness | Selection metric | Checkpoint |",
+            "|---:|---:|---:|---:|---|---|",
+        ]
+    )
     for row in training_rows:
         lines.append(
-            "| {} | {} | {} | {} |".format(
+            "| {} | {} | {} | {} | {} | {} |".format(
                 row["training_seed"],
                 row["episodes"],
                 row["best_training_score"],
+                row.get("best_validation_tardiness", ""),
+                row.get("checkpoint_selection_metric", "training_reward"),
                 row["checkpoint_path"],
             )
         )
+
+    dqn_by_seed: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for row in method_rows.get("DQN", []):
+        if row.get("training_seed"):
+            dqn_by_seed[row["training_seed"]].append(row)
+    if dqn_by_seed:
+        lines.extend(
+            [
+                "",
+                "## DQN by Training Seed",
+                "",
+                "| Training seed | Held-out instances | Mean tardiness | Std | 95% CI |",
+                "|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for training_seed, seed_rows in sorted(dqn_by_seed.items(), key=lambda item: int(item[0])):
+            tardiness_values = [float(row["tardiness_rate"]) for row in seed_rows]
+            lines.append(
+                "| {} | {} | {} | {} | {} |".format(
+                    training_seed,
+                    len(seed_rows),
+                    _format_float(_mean(tardiness_values)),
+                    _format_float(_std(tardiness_values)),
+                    _format_float(_ci95(tardiness_values)),
+                )
+            )
 
     lines.extend(
         [
@@ -437,36 +587,57 @@ def make_rl_markdown_summary(rows: list[dict[str, str]], training_rows: list[dic
             )
         )
 
-    if "DQN" in method_rows and baseline_by_instance:
-        differences = []
-        wins = losses = ties = 0
-        for row in method_rows["DQN"]:
-            baseline = baseline_by_instance[row["instance_id"]]
-            difference = float(row["tardiness_rate"]) - float(baseline["tardiness_rate"])
-            differences.append(difference)
-            if difference < 0:
-                wins += 1
-            elif difference > 0:
-                losses += 1
-            else:
-                ties += 1
+    if "DQN" in method_rows and baseline_by_method_instance:
+        comparison_rows = []
+        for baseline_method, baseline_by_instance in baseline_by_method_instance.items():
+            differences = []
+            wins = losses = ties = 0
+            for row in method_rows["DQN"]:
+                baseline = baseline_by_instance.get(row["instance_id"])
+                if baseline is None:
+                    continue
+                difference = float(row["tardiness_rate"]) - float(baseline["tardiness_rate"])
+                differences.append(difference)
+                if difference < 0:
+                    wins += 1
+                elif difference > 0:
+                    losses += 1
+                else:
+                    ties += 1
+            comparison_rows.append((baseline_method, differences, wins, losses, ties))
+        comparison_rows.sort(key=lambda item: _mean(item[1]) if item[1] else 0.0)
         lines.extend(
             [
                 "",
-                "## DQN Against SPT",
+                "## DQN Against Baselines",
                 "",
-                "| Compared pairs | Mean tardiness difference | Wilcoxon p | Wins | Losses | Ties |",
-                "|---:|---:|---:|---:|---:|---:|",
-                "| {} | {} | {} | {} | {} | {} |".format(
+                "Negative differences mean DQN had lower tardiness than the baseline.",
+                "",
+                "| Baseline | Compared pairs | Mean tardiness difference | Wilcoxon p | Wins | Losses | Ties |",
+                "|---|---:|---:|---:|---:|---:|---:|",
+            ]
+        )
+        for baseline_method, differences, wins, losses, ties in comparison_rows:
+            lines.append(
+                "| {} | {} | {} | {} | {} | {} | {} |".format(
+                    baseline_method,
                     len(differences),
                     _format_float(_mean(differences)),
                     _format_float(_wilcoxon_p_value(differences)),
                     wins,
                     losses,
                     ties,
-                ),
-            ]
-        )
+                )
+            )
+
+    lines.extend(
+        [
+        "",
+        "## Interpretation Guardrail",
+        "",
+        "Only held-out test rows are used for the ranking and paired comparisons. Validation rows are available in the raw CSV for checkpoint-selection auditing.",
+        ]
+    )
 
     return "\n".join(lines) + "\n"
 

@@ -72,6 +72,12 @@ def main() -> None:
     train_parser.add_argument("--output-dir", default="outputs/training", help="Directory for generated training checkpoints.")
     train_parser.add_argument("--seed", type=int, default=None, help="Optional random seed for reproducible training.")
     train_parser.add_argument("--wandb", action="store_true", help="Initialize an offline W&B run for training logs.")
+    train_parser.add_argument("--reward-mode", choices=["sharp", "dense_tardiness"], default="sharp")
+    train_parser.add_argument("--gamma", type=float, default=0.99)
+    train_parser.add_argument("--epsilon-decay", type=float, default=0.995)
+    train_parser.add_argument("--epsilon-min", type=float, default=0.01)
+    train_parser.add_argument("--learning-rate", type=float, default=0.001)
+    train_parser.add_argument("--train-start", type=int, default=1000)
 
     generate_parser = subparsers.add_parser("generate-dataset", help="Generate a stable-ID dataset .ini file.")
     generate_parser.add_argument("--output", required=True, help="Destination .ini path.")
@@ -109,9 +115,17 @@ def main() -> None:
     rl_parser.add_argument("--ddt-values", default="0.5,1.0", help="Comma-separated due-date tightness values.")
     rl_parser.add_argument("--arrival-rates", default="50,100", help="Comma-separated arrival-rate values.")
     rl_parser.add_argument("--train-instance-seeds", default="101,202", help="Comma-separated dataset seeds for training instances.")
+    rl_parser.add_argument("--validation-instance-seeds", default="505", help="Comma-separated dataset seeds for validation instances.")
     rl_parser.add_argument("--test-instance-seeds", default="303,404", help="Comma-separated dataset seeds for held-out test instances.")
     rl_parser.add_argument("--training-seeds", default="11,22,33", help="Comma-separated random seeds for DQN training.")
     rl_parser.add_argument("--episodes", type=int, default=1000)
+    rl_parser.add_argument("--validation-every", type=int, default=50, help="Episodes between validation-set checkpoint evaluations.")
+    rl_parser.add_argument("--reward-mode", choices=["sharp", "dense_tardiness"], default="sharp")
+    rl_parser.add_argument("--gamma", type=float, default=0.99)
+    rl_parser.add_argument("--epsilon-decay", type=float, default=0.995)
+    rl_parser.add_argument("--epsilon-min", type=float, default=0.01)
+    rl_parser.add_argument("--learning-rate", type=float, default=0.001)
+    rl_parser.add_argument("--train-start", type=int, default=1000)
     rl_parser.add_argument("--work-centers", type=int, default=5)
     rl_parser.add_argument("--machines-per-work-center", type=int, default=3)
     rl_parser.add_argument("--initial-job-fraction", type=float, default=0.5)
@@ -141,6 +155,12 @@ def main() -> None:
             output_dir=project_dir / args.output_dir,
             seed=args.seed,
             use_wandb=args.wandb,
+            reward_mode=args.reward_mode,
+            gamma=args.gamma,
+            epsilon_decay=args.epsilon_decay,
+            epsilon_min=args.epsilon_min,
+            learning_rate=args.learning_rate,
+            train_start=args.train_start,
         )
         print("\nTRAIN_RUN_OK")
         print("best_score", score)
@@ -190,9 +210,17 @@ def main() -> None:
             ddt_values=_parse_float_list(args.ddt_values),
             arrival_rates=_parse_int_list(args.arrival_rates),
             train_instance_seeds=_parse_int_list(args.train_instance_seeds),
+            validation_instance_seeds=_parse_int_list(args.validation_instance_seeds),
             test_instance_seeds=_parse_int_list(args.test_instance_seeds),
             training_seeds=_parse_int_list(args.training_seeds),
             episodes=args.episodes,
+            validation_every=args.validation_every,
+            reward_mode=args.reward_mode,
+            gamma=args.gamma,
+            epsilon_decay=args.epsilon_decay,
+            epsilon_min=args.epsilon_min,
+            learning_rate=args.learning_rate,
+            train_start=args.train_start,
             work_centers=args.work_centers,
             machines_per_work_center=args.machines_per_work_center,
             initial_job_fraction=args.initial_job_fraction,

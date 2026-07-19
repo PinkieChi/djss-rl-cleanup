@@ -7,11 +7,13 @@ terminal commands.
 # Runtime defaults matching the safe notebook path.
 validation = False
 maintenance_integrated = False
+reward_mode = "sharp"
 
 
 # ---- Extracted notebook cell 12 ----
 import os
 import tempfile
+import csv
 
 os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "djss-rl-matplotlib"))
 
@@ -964,10 +966,15 @@ class Scenario(BaseScenario):
 
     world.total_cost = world.total_tardiness_cost + world.total_energy_consumption + world.total_maintenance_cost
 
+    current_tardiness_rate = actual_tardiness_rate + expected_tardiness_rate
+    tardiness_delta = world.previous_tardiness_rate - current_tardiness_rate
+    if reward_mode == "dense_tardiness":
+      return float(tardiness_delta)
+
     # Sharp reward (Minimizing the Tardiness rate)
-    if actual_tardiness_rate + expected_tardiness_rate > world.previous_tardiness_rate:
+    if current_tardiness_rate > world.previous_tardiness_rate:
       return -0.75  # Negative reward if tardiness rate increased
-    elif actual_tardiness_rate + expected_tardiness_rate < world.previous_tardiness_rate:
+    elif current_tardiness_rate < world.previous_tardiness_rate:
       return 1  # Positive reward if tardiness rate decreased
     else:
       return -0.5 # Small negative reward if tardiness rate remained the same
@@ -1152,7 +1159,19 @@ class DuelingNetwork(nn.Module):
 
 # ---- Extracted notebook cell 32 ----
 class DQNAgent:
-    def __init__(self, input_dim, action_size, hidden_layers, neurons_per_layer, batch_size):
+    def __init__(
+        self,
+        input_dim,
+        action_size,
+        hidden_layers,
+        neurons_per_layer,
+        batch_size,
+        gamma=0.99,
+        epsilon_decay=0.995,
+        epsilon_min=0.01,
+        learning_rate=0.001,
+        train_start=1000,
+    ):
         # Initialize the agent with state dimension, action size, network architecture, and batch size
         self.state_size = input_dim      # Dimension of the input state vector
         self.action_size = action_size   # Number of possible actions 
@@ -1160,12 +1179,12 @@ class DQNAgent:
         super(DQNAgent, self).__init__()
 
         # Parameters for training
-        self.train_start = 1000          # Number of experiences to collect before starting training     
+        self.train_start = train_start   # Number of experiences to collect before starting training
         self.memory_size = 100000        # Maximum capacity of the replay memory
         self.memory = Memory(self.memory_size)  # Initialize the replay memory
-        self.gamma = 0.99               # Discount factor for future rewards
+        self.gamma = gamma               # Discount factor for future rewards
         self.epsilon = 1.0              # Initial exploration rate for epsilon-greedy policy
-        self.epsilon_min = 0.01          # Minimum exploration rate
+        self.epsilon_min = epsilon_min   # Minimum exploration rate
         self.loss_fn = nn.MSELoss(reduction='none')   # Mean Squared Error loss function without reduction
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")   # Use GPU if available
 
@@ -1179,13 +1198,13 @@ class DQNAgent:
 
         # Exploration parameters
         self.explore_step = 80000    # Number of steps over which to anneal epsilon (not used in this code)
-        self.epsilon_decay = 0.995   # Decay rate for epsilon after each episode 
+        self.epsilon_decay = epsilon_decay   # Decay rate for epsilon after each episode
         self.tau = 0.01              # Soft update parameter for target network
         self.update_rate = 1000      # Number of steps between target network updates
         self.learn_step_counter = 0  # Counter for learning steps
 
         # Optimizer and learning rate scheduler
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001, weight_decay=1e-5)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=1e-5)
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=100, gamma=0.9)
 
     def weights_init(self, m):
@@ -1286,14 +1305,82 @@ class DQNAgent:
         self.model.eval()
 
 
+def _evaluate_agent_tardiness(agent, dataset_paths, max_iterations=1000000):
+    previous_epsilon = agent.epsilon
+    agent.epsilon = 0
+    tardiness_values = []
+    try:
+        for dataset_path in dataset_paths:
+            env = make_env(dataset_path=dataset_path)
+            world = env.world
+            env.reset()
+            iterations = 0
+            while not all(job.CRJ == 1 for job in world.jobs):
+                iterations += 1
+                if iterations > max_iterations:
+                    raise RuntimeError(f"Validation evaluation exceeded {max_iterations} scheduling iterations.")
+
+                if not (any(job.legal for job in world.jobs) and any(machine.request for machine in world.machines)):
+                    env.update_state()
+                    continue
+
+                world.ready_machine = next((machine for machine in world.machines if machine.request), None)
+                env.get_legal_actions(world.ready_machine)
+                if world.ready_machine.legal_actions:
+                    state = env._get_obs
+                    action = agent.get_action(state, world)
+                    env.step(action)
+                else:
+                    world.ready_machine.request = False
+            tardiness_values.append(float(world.tardiness_rate))
+            env.close()
+    finally:
+        agent.epsilon = previous_epsilon
+        agent.model.train()
+    return float(np.mean(tardiness_values)) if tardiness_values else None
+
+
 # ---- Extracted notebook cell 34 ----
-def train_agents(hidden_layers, neurons_per_layer, batch_size, episodes=1000, eval_every=25, dataset_path=None, dataset_paths=None):
+def train_agents(
+    hidden_layers,
+    neurons_per_layer,
+    batch_size,
+    episodes=1000,
+    eval_every=25,
+    dataset_path=None,
+    dataset_paths=None,
+    validation_dataset_paths=None,
+    validation_every=None,
+    return_metadata=False,
+    gamma=0.99,
+    epsilon_decay=0.995,
+    epsilon_min=0.01,
+    learning_rate=0.001,
+    train_start=1000,
+):
 
     scores = []
-    best_score = -np.inf  # Initialize best_score appropriately
+    best_training_score = -np.inf
+    best_checkpoint_score = -np.inf
+    best_validation_tardiness = np.inf
     EPISODES = episodes
+    checkpoint_filename = 'Best_agent_hidden_layers_{}neurons_per_layer_{}_batch_size_{}.pth'.format(hidden_layers, neurons_per_layer, batch_size)
+    validation_every = validation_every or eval_every
+    checkpoint_selection_metric = "validation_tardiness" if validation_dataset_paths else "training_reward"
+    history = []
 
-    agent = DQNAgent(input_dim=state_dim, action_size=output_dim, hidden_layers=hidden_layers, neurons_per_layer=neurons_per_layer, batch_size=batch_size)
+    agent = DQNAgent(
+        input_dim=state_dim,
+        action_size=output_dim,
+        hidden_layers=hidden_layers,
+        neurons_per_layer=neurons_per_layer,
+        batch_size=batch_size,
+        gamma=gamma,
+        epsilon_decay=epsilon_decay,
+        epsilon_min=epsilon_min,
+        learning_rate=learning_rate,
+        train_start=train_start,
+    )
 
     print("........................................Collecting Experience........................................")
 
@@ -1332,14 +1419,35 @@ def train_agents(hidden_layers, neurons_per_layer, batch_size, episodes=1000, ev
 
         scores.append(reward_epo)  # Append the cumulative episode reward
         mean_utilization = np.mean([machine.utilization for machine in world.machines]) * 100
+        best_training_score = max(best_training_score, reward_epo)
 
         print("episode: {}/{}, episode reward: {:.2f}, tardiness rate: {:.2f}, mean Machine Utilization: {:.2f}%".format(
             e, EPISODES, reward_epo, world.tardiness_rate, mean_utilization))
 
-        # Save the model if the cumulative episode reward is better
-        if reward_epo > best_score:
-            best_score = reward_epo
-            agent.save_model('Best_agent_hidden_layers_{}neurons_per_layer_{}_batch_size_{}.pth'.format(hidden_layers, neurons_per_layer, batch_size))
+        validation_mean_tardiness = None
+        if validation_dataset_paths and ((e + 1) % validation_every == 0 or e == EPISODES - 1):
+            validation_mean_tardiness = _evaluate_agent_tardiness(agent, validation_dataset_paths)
+            print("validation: episode {}/{}, mean tardiness rate: {:.6f}".format(e, EPISODES, validation_mean_tardiness))
+
+        if validation_dataset_paths:
+            if validation_mean_tardiness is not None and validation_mean_tardiness < best_validation_tardiness:
+                best_validation_tardiness = validation_mean_tardiness
+                agent.save_model(checkpoint_filename)
+        elif reward_epo > best_checkpoint_score:
+            best_checkpoint_score = reward_epo
+            agent.save_model(checkpoint_filename)
+
+        history.append(
+            {
+                "episode": e,
+                "train_dataset_path": str(episode_dataset_path),
+                "episode_reward": reward_epo,
+                "training_tardiness_rate": float(world.tardiness_rate),
+                "mean_machine_utilization": float(mean_utilization),
+                "epsilon": float(agent.epsilon),
+                "validation_mean_tardiness": "" if validation_mean_tardiness is None else validation_mean_tardiness,
+            }
+        )
 
         scheduling_scheme = env.render()
 
@@ -1357,7 +1465,27 @@ def train_agents(hidden_layers, neurons_per_layer, batch_size, episodes=1000, ev
             wandb.log({'Number of jobs': len(world.jobs), 'Reward': reward_epo, 'Tardiness rate': world.tardiness_rate, 'Tardiness cost': world.total_tardiness_cost, 'Total cost of energy consumption': world.total_energy_consumption, 'Number of selected DR': fig1, 'Utilization rate by machine': fig2, 'Exploration': agent.epsilon, "Scheduling scheme": scheduling_scheme})
 
         env.close()
-    return best_score
+
+    if history:
+        with open("training_history.csv", "w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(history[0].keys()))
+            writer.writeheader()
+            writer.writerows(history)
+
+    metadata = {
+        "best_training_score": float(best_training_score),
+        "best_validation_tardiness": None if best_validation_tardiness == np.inf else float(best_validation_tardiness),
+        "checkpoint_selection_metric": checkpoint_selection_metric,
+        "checkpoint_filename": checkpoint_filename,
+        "episodes": EPISODES,
+        "reward_mode": reward_mode,
+        "gamma": gamma,
+        "epsilon_decay": epsilon_decay,
+        "epsilon_min": epsilon_min,
+        "learning_rate": learning_rate,
+        "train_start": train_start,
+    }
+    return metadata if return_metadata else best_training_score
 
 
 # ---- Extracted notebook cell 36 ----
