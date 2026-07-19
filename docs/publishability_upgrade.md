@@ -9,6 +9,7 @@ This project now has the first pieces of a publishable experiment workflow: gene
 - Added `python -m djss_rl.cli generate-dataset`.
 - Added `python -m djss_rl.cli experiment`.
 - Added `python -m djss_rl.cli rl-study` for generated train/test instance studies.
+- Added `python -m djss_rl.cli paper-study` for resumable multi-variant studies.
 - Added optional validation splits, dense tardiness reward shaping, and tunable DQN hyperparameters.
 - Added experiment summaries with mean tardiness, standard deviation, 95% confidence intervals, and paired comparison tables.
 - Added tests for generated dataset loading, tiny experiment-grid execution, and tiny held-out RL-study execution.

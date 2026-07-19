@@ -5,7 +5,7 @@ import tempfile
 from djss_rl.datasets import DatasetSpec, generate_dataset
 from djss_rl.environment import make_env
 from djss_rl.evaluation import evaluate_checkpoint, run_scheduling
-from djss_rl.experiments import run_baseline_grid, run_rl_generalization_study
+from djss_rl.experiments import run_baseline_grid, run_paper_study, run_rl_generalization_study
 from djss_rl.notebook_runner import execute_notebook
 
 
@@ -153,6 +153,35 @@ class ExperimentInfrastructureTest(unittest.TestCase):
         self.assertIn("RL Generalization Study Summary", summary_text)
         self.assertIn("DQN Against Baselines", summary_text)
         self.assertTrue(config_exists)
+
+    def test_tiny_paper_study_writes_summary(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path, summary_path = run_paper_study(
+                output_dir=tmpdir,
+                variants=["dense"],
+                jobs_values=[6],
+                ddt_values=[0.5],
+                arrival_rates=[50],
+                train_instance_seeds=[11],
+                validation_instance_seeds=[44],
+                test_instance_seeds=[22],
+                training_seeds=[33],
+                episodes=1,
+                validation_every=1,
+                work_centers=2,
+                machines_per_work_center=2,
+                min_operations=2,
+                max_operations=3,
+                min_processing_time=10,
+                max_processing_time=20,
+            )
+
+            csv_text = csv_path.read_text(encoding="utf-8")
+            summary_text = summary_path.read_text(encoding="utf-8")
+
+        self.assertIn("dense", csv_text)
+        self.assertIn("Paper Study Summary", summary_text)
+        self.assertIn("DQN-SPT", summary_text)
 
 
 if __name__ == "__main__":

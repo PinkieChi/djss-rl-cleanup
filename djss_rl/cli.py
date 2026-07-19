@@ -8,7 +8,7 @@ from pathlib import Path
 from .datasets import DatasetSpec, generate_dataset
 from .environment import DEFAULT_DATASET, make_env
 from .evaluation import DEFAULT_CHECKPOINT, evaluate_all
-from .experiments import run_baseline_grid, run_rl_generalization_study
+from .experiments import PAPER_STUDY_VARIANTS, run_baseline_grid, run_paper_study, run_rl_generalization_study
 from .training import train_agents
 
 
@@ -41,6 +41,10 @@ def _parse_int_list(value: str) -> list[int]:
 
 def _parse_float_list(value: str) -> list[float]:
     return [float(item.strip()) for item in value.split(",") if item.strip()]
+
+
+def _parse_str_list(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 def main() -> None:
@@ -133,6 +137,34 @@ def main() -> None:
     rl_parser.add_argument("--max-operations", type=int, default=10)
     rl_parser.add_argument("--min-processing-time", type=int, default=60)
     rl_parser.add_argument("--max-processing-time", type=int, default=120)
+
+    paper_parser = subparsers.add_parser("paper-study", help="Run a resumable multi-variant publishability study.")
+    paper_parser.add_argument("--output-dir", default="outputs/paper-study", help="Directory for all paper-study outputs.")
+    paper_parser.add_argument(
+        "--variants",
+        default="dense,sharp",
+        help=f"Comma-separated variants. Available: {','.join(sorted(PAPER_STUDY_VARIANTS))}",
+    )
+    paper_parser.add_argument("--jobs-values", default="20", help="Comma-separated job counts.")
+    paper_parser.add_argument("--ddt-values", default="0.5,1.0", help="Comma-separated due-date tightness values.")
+    paper_parser.add_argument("--arrival-rates", default="50,100", help="Comma-separated arrival-rate values.")
+    paper_parser.add_argument("--train-instance-seeds", default="101,202", help="Comma-separated dataset seeds for training instances.")
+    paper_parser.add_argument("--validation-instance-seeds", default="505", help="Comma-separated dataset seeds for validation instances.")
+    paper_parser.add_argument("--test-instance-seeds", default="303,404", help="Comma-separated dataset seeds for held-out test instances.")
+    paper_parser.add_argument(
+        "--training-seeds",
+        default="11,22,33,44,55,66,77,88,99,110",
+        help="Comma-separated random seeds for independent DQN training runs.",
+    )
+    paper_parser.add_argument("--episodes", type=int, default=1000)
+    paper_parser.add_argument("--validation-every", type=int, default=50)
+    paper_parser.add_argument("--work-centers", type=int, default=5)
+    paper_parser.add_argument("--machines-per-work-center", type=int, default=3)
+    paper_parser.add_argument("--initial-job-fraction", type=float, default=0.5)
+    paper_parser.add_argument("--min-operations", type=int, default=6)
+    paper_parser.add_argument("--max-operations", type=int, default=10)
+    paper_parser.add_argument("--min-processing-time", type=int, default=60)
+    paper_parser.add_argument("--max-processing-time", type=int, default=120)
 
     args = parser.parse_args()
     project_dir = Path(args.project_dir)
@@ -230,6 +262,30 @@ def main() -> None:
             max_processing_time=args.max_processing_time,
         )
         print("\nRL_STUDY_RUN_OK")
+        print("results_csv", csv_path)
+        print("summary_markdown", summary_path)
+    elif args.command == "paper-study":
+        csv_path, summary_path = run_paper_study(
+            output_dir=project_dir / args.output_dir,
+            variants=_parse_str_list(args.variants),
+            jobs_values=_parse_int_list(args.jobs_values),
+            ddt_values=_parse_float_list(args.ddt_values),
+            arrival_rates=_parse_int_list(args.arrival_rates),
+            train_instance_seeds=_parse_int_list(args.train_instance_seeds),
+            validation_instance_seeds=_parse_int_list(args.validation_instance_seeds),
+            test_instance_seeds=_parse_int_list(args.test_instance_seeds),
+            training_seeds=_parse_int_list(args.training_seeds),
+            episodes=args.episodes,
+            validation_every=args.validation_every,
+            work_centers=args.work_centers,
+            machines_per_work_center=args.machines_per_work_center,
+            initial_job_fraction=args.initial_job_fraction,
+            min_operations=args.min_operations,
+            max_operations=args.max_operations,
+            min_processing_time=args.min_processing_time,
+            max_processing_time=args.max_processing_time,
+        )
+        print("\nPAPER_STUDY_RUN_OK")
         print("results_csv", csv_path)
         print("summary_markdown", summary_path)
 

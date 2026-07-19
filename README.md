@@ -71,6 +71,12 @@ Run a generated-instance DQN generalization study:
 python -m djss_rl.cli rl-study --jobs-values 20 --ddt-values 0.5,1.0 --arrival-rates 50,100 --train-instance-seeds 101,202 --validation-instance-seeds 505 --test-instance-seeds 303,404 --training-seeds 11,22,33 --episodes 1000 --validation-every 50
 ```
 
+Run a resumable multi-variant paper study:
+
+```bash
+python -m djss_rl.cli paper-study --variants dense,sharp --jobs-values 20 --ddt-values 0.5,1.0 --arrival-rates 50,100 --train-instance-seeds 101,202 --validation-instance-seeds 505 --test-instance-seeds 303,404 --training-seeds 11,22,33,44,55,66,77,88,99,110 --episodes 1000 --validation-every 50
+```
+
 Run one training episode from the restored dataset:
 
 ```bash
