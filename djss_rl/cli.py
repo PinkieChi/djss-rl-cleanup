@@ -14,6 +14,7 @@ from .experiments import (
     run_baseline_grid,
     run_checkpoint_generalization_study,
     run_paper_study,
+    run_policy_trace_study,
     run_rl_generalization_study,
 )
 from .training import train_agents
@@ -210,6 +211,15 @@ def main() -> None:
     checkpoint_parser.add_argument("--min-processing-time", type=int, default=60)
     checkpoint_parser.add_argument("--max-processing-time", type=int, default=120)
 
+    trace_parser = subparsers.add_parser(
+        "trace-policy",
+        help="Trace which dispatching-rule actions a saved DQN checkpoint selects.",
+    )
+    trace_parser.add_argument("--output-dir", default="outputs/policy-trace")
+    trace_parser.add_argument("--checkpoint", default=DEFAULT_CHECKPOINT, help="Saved PyTorch checkpoint path.")
+    trace_parser.add_argument("--dataset-glob", required=True, help="Glob of .ini datasets to trace.")
+    trace_parser.add_argument("--checkpoint-label", default="DQN")
+
     args = parser.parse_args()
     project_dir = Path(args.project_dir)
     dataset_path = project_dir / args.dataset
@@ -365,6 +375,18 @@ def main() -> None:
         )
         print("\nCHECKPOINT_STUDY_RUN_OK")
         print("checkpoints", len(checkpoint_paths))
+        print("results_csv", csv_path)
+        print("summary_markdown", summary_path)
+    elif args.command == "trace-policy":
+        dataset_paths = _resolve_glob(project_dir, args.dataset_glob)
+        csv_path, summary_path = run_policy_trace_study(
+            output_dir=project_dir / args.output_dir,
+            checkpoint_path=project_dir / args.checkpoint,
+            dataset_paths=dataset_paths,
+            checkpoint_label=args.checkpoint_label,
+        )
+        print("\nPOLICY_TRACE_RUN_OK")
+        print("datasets", len(dataset_paths))
         print("results_csv", csv_path)
         print("summary_markdown", summary_path)
 

@@ -9,6 +9,7 @@ from djss_rl.experiments import (
     run_baseline_grid,
     run_checkpoint_generalization_study,
     run_paper_study,
+    run_policy_trace_study,
     run_rl_generalization_study,
 )
 from djss_rl.notebook_runner import execute_notebook
@@ -144,6 +145,9 @@ class ExperimentInfrastructureTest(unittest.TestCase):
         self.assertIn("MRT_DR_O", csv_text)
         self.assertIn("SPT_DR_O", csv_text)
         self.assertIn("Experiment Matrix Summary", summary_text)
+        self.assertIn("Median", summary_text)
+        self.assertIn("Rank-biserial", summary_text)
+        self.assertIn("Regime Breakdown", summary_text)
 
     def test_tiny_rl_study_writes_results(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -175,6 +179,8 @@ class ExperimentInfrastructureTest(unittest.TestCase):
         self.assertIn("validation", csv_text)
         self.assertIn("RL Generalization Study Summary", summary_text)
         self.assertIn("DQN Against Baselines", summary_text)
+        self.assertIn("Median", summary_text)
+        self.assertIn("Regime Breakdown", summary_text)
         self.assertTrue(config_exists)
 
     def test_tiny_paper_study_writes_summary(self):
@@ -235,7 +241,42 @@ class ExperimentInfrastructureTest(unittest.TestCase):
         self.assertIn("DQN", csv_text)
         self.assertIn("restored", csv_text)
         self.assertIn("RL Generalization Study Summary", summary_text)
+        self.assertIn("Rank-biserial", summary_text)
         self.assertIn("Publication Use", summary_text)
+
+    def test_tiny_policy_trace_writes_summary(self):
+        project_dir = Path(__file__).resolve().parents[1]
+        checkpoint_path = (
+            project_dir
+            / "Best_agent_hidden_layers_7neurons_per_layer_[207, 145, 78, 79, 205, 105, 217]_batch_size_32.pth"
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dataset_path = Path(tmpdir) / "generated.ini"
+            generate_dataset(
+                dataset_path,
+                spec=DatasetSpec(
+                    jobs=6,
+                    work_centers=2,
+                    machines_per_work_center=2,
+                    min_operations=2,
+                    max_operations=3,
+                    min_processing_time=10,
+                    max_processing_time=20,
+                ),
+                seed=11,
+            )
+            csv_path, summary_path = run_policy_trace_study(
+                output_dir=Path(tmpdir) / "trace",
+                checkpoint_path=checkpoint_path,
+                dataset_paths=[dataset_path],
+            )
+
+            csv_text = csv_path.read_text(encoding="utf-8")
+            summary_text = summary_path.read_text(encoding="utf-8")
+
+        self.assertIn("dominant_action", csv_text)
+        self.assertIn("Policy Trace Summary", summary_text)
+        self.assertIn("Action Distribution", summary_text)
 
 
 if __name__ == "__main__":

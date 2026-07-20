@@ -168,8 +168,39 @@ Per-size breakdown:
 
 This is a useful external validity result, not a replacement for retraining on the expanded matrix. It shows that the dense DQN checkpoints generalize well enough to beat several weaker rules and slightly improve on ATC overall, but they do not beat SPT across the broader 20/50/100-job generated matrix. The best publishable interpretation is therefore: the paper-study result is valid for its held-out matrix, and the broad checkpoint study identifies scale generalization as the main remaining research gap.
 
+## Expanded Dense Retraining Pilot
+
+Command:
+
+```bash
+python3 -m djss_rl.cli paper-study --output-dir outputs/expanded-dense-pilot-20260720 --variants dense --jobs-values 20,50,100 --ddt-values 0.5,1.0,1.5 --arrival-rates 50,100,200 --train-instance-seeds 101 --validation-instance-seeds 505 --test-instance-seeds 707 --training-seeds 66 --episodes 100 --validation-every 25
+```
+
+This was a feasibility pilot for the full expanded retraining study: 1 dense-reward DQN run, 100 episodes, 27 training instances, 27 validation instances, and 27 held-out test instances. It completed with 0 failed rows. The selected checkpoint was from episode 74, with best validation tardiness `0.377581`.
+
+Held-out test ranking:
+
+| Rank | Method | n | Mean tardiness | Median | 95% CI |
+|---:|---|---:|---:|---:|---:|
+| 1 | SPT_DR_O | 27 | 0.315177 | 0.269521 | 0.094035 |
+| 2 | MRT_DR_O | 27 | 0.359163 | 0.395466 | 0.091829 |
+| 3 | ATC_DR_O | 27 | 0.364898 | 0.404282 | 0.108853 |
+| 4 | DQN | 27 | 0.364898 | 0.404282 | 0.108853 |
+
+The pilot DQN matched `ATC_DR_O` exactly on this held-out split and did not beat `SPT_DR_O`: DQN-SPT mean difference `+0.049722`, Wilcoxon `p = 0.003249`, with 7 wins, 17 losses, and 3 ties. It did beat weaker rules including `CR_DR_O`, `MCR_DR_O`, `LSPO_DR_O`, `EDD_DR_O`, `SLK_DR_O`, and `LRT_DR_O`.
+
+Policy trace command:
+
+```bash
+python3 -m djss_rl.cli trace-policy --output-dir outputs/expanded-dense-pilot-20260720/policy-trace --checkpoint 'outputs/expanded-dense-pilot-20260720/dense/agents/seed-66/Best_agent_hidden_layers_7neurons_per_layer_[207, 145, 78, 79, 205, 105, 217]_batch_size_32.pth' --dataset-glob 'outputs/expanded-dense-pilot-20260720/dense/test/datasets/*.ini'
+```
+
+The policy trace confirms why DQN and `ATC_DR_O` are identical in the pilot: the selected DQN checkpoint chose `ATC_DR_O` for all 12,314 dispatching decisions across all 27 held-out instances. No other action was selected.
+
+Interpretation: expanded retraining is technically feasible and validation improved during training, but 100 episodes and 1 seed are too small for a publishable expanded-matrix claim. The next serious run should keep the expanded matrix, increase training budget and independent seeds, and add policy-behavior diagnostics so the learned agent cannot be mistaken for a single-rule clone.
+
 ## Interpretation
 
 The expanded baseline matrix shows that `SPT_DR_O` is the strongest broad default baseline across the larger generated-instance grid. The DQN studies are now more than smoke tests: the 10-seed dense paper study shows that validation-based checkpointing and dense reward shaping can produce a DQN policy that significantly beats SPT on the held-out RL matrix.
 
-The main limitation is no longer just ATC; it is broader scale generalization. The best DQN result beats SPT on the original held-out RL matrix, while the wider checkpoint-only study shows that SPT remains stronger when the same checkpoints are evaluated across larger 50- and 100-job cases without retraining. A careful paper can claim a reproducible RL pipeline, a competitive dense-reward DQN variant, and statistically significant improvement over SPT on the selected held-out matrix. A stronger paper should retrain on the expanded matrix, add standard benchmark-derived instances where possible, and report ATC-style rules as a stress-test family rather than hiding them.
+The main limitation is no longer just ATC; it is broader scale generalization. The best DQN result beats SPT on the original held-out RL matrix, while the wider checkpoint-only study and the 100-episode expanded retraining pilot both show that SPT remains stronger across larger 50- and 100-job cases. A careful paper can claim a reproducible RL pipeline, a competitive dense-reward DQN variant, and statistically significant improvement over SPT on the selected held-out matrix. A stronger paper should retrain longer on the expanded matrix with multiple seeds, add standard benchmark-derived instances where possible, and report ATC-style rules as a stress-test family rather than hiding them.

@@ -22,6 +22,7 @@ from .evaluation import (
     evaluate_checkpoint,
     load_checkpoint_agent,
     run_scheduling,
+    trace_scheduling_actions,
 )
 from .environment import make_env
 from .training import train_agents
@@ -47,6 +48,27 @@ def _std(values: list[float]) -> float:
     return statistics.stdev(values) if len(values) > 1 else 0.0
 
 
+def _median(values: list[float]) -> float:
+    return statistics.median(values) if values else 0.0
+
+
+def _percentile(values: list[float], percentile: float) -> float:
+    if not values:
+        return 0.0
+    sorted_values = sorted(values)
+    if len(sorted_values) == 1:
+        return sorted_values[0]
+    position = (len(sorted_values) - 1) * percentile
+    lower_index = int(position)
+    upper_index = min(lower_index + 1, len(sorted_values) - 1)
+    fraction = position - lower_index
+    return sorted_values[lower_index] + fraction * (sorted_values[upper_index] - sorted_values[lower_index])
+
+
+def _iqr(values: list[float]) -> float:
+    return _percentile(values, 0.75) - _percentile(values, 0.25)
+
+
 def _ci95(values: list[float]) -> float:
     if len(values) <= 1:
         return 0.0
@@ -58,6 +80,28 @@ def _wilcoxon_p_value(values: list[float]) -> float:
     if len(nonzero_values) < 2:
         return float("nan")
     return float(wilcoxon(nonzero_values).pvalue)
+
+
+def _paired_rank_biserial(values: list[float]) -> float:
+    """Return paired rank-biserial effect size for signed differences."""
+
+    nonzero_values = [value for value in values if value != 0]
+    if not nonzero_values:
+        return 0.0
+    sorted_pairs = sorted((abs(value), value) for value in nonzero_values)
+    signed_rank_sum = 0.0
+    total_rank_sum = 0.0
+    index = 0
+    while index < len(sorted_pairs):
+        next_index = index + 1
+        while next_index < len(sorted_pairs) and sorted_pairs[next_index][0] == sorted_pairs[index][0]:
+            next_index += 1
+        average_rank = (index + 1 + next_index) / 2
+        for _, value in sorted_pairs[index:next_index]:
+            signed_rank_sum += average_rank if value > 0 else -average_rank
+            total_rank_sum += average_rank
+        index = next_index
+    return signed_rank_sum / total_rank_sum if total_rank_sum else 0.0
 
 
 def _label_sort_key(value: str) -> tuple[int, int | str]:
@@ -326,8 +370,10 @@ def _comparison_stats(
         "baseline": baseline,
         "compared_pairs": len(differences),
         "mean_difference": _mean(differences),
+        "median_difference": _median(differences),
         "std_difference": _std(differences),
         "wilcoxon_p": _wilcoxon_p_value(differences),
+        "rank_biserial": _paired_rank_biserial(differences),
         "wins": wins,
         "losses": losses,
         "ties": ties,
@@ -341,6 +387,62 @@ def _method_metric(rows: list[dict[str, str]], *, method: str, metric: str = "ta
         if row.get("split", "test") == split and row.get("status", "ok") == "ok" and row["method"] == method
     ]
     return _mean(values)
+
+
+def _summarize_method_rows(method: str, values: list[dict[str, str]]) -> dict[str, object]:
+    tardiness_values = [float(row["tardiness_rate"]) for row in values]
+    return {
+        "method": method,
+        "n": len(values),
+        "mean_tardiness": _mean(tardiness_values),
+        "median_tardiness": _median(tardiness_values),
+        "std_tardiness": _std(tardiness_values),
+        "iqr_tardiness": _iqr(tardiness_values),
+        "ci95_tardiness": _ci95(tardiness_values),
+        "mean_makespan": _mean([float(row["makespan"]) for row in values]),
+        "mean_utilization": _mean([float(row["mean_machine_utilization"]) for row in values]),
+    }
+
+
+def _append_regime_breakdown(lines: list[str], rows: list[dict[str, str]], *, methods: list[str]) -> None:
+    dimensions = [
+        ("jobs", "Jobs"),
+        ("ddt", "DDT"),
+        ("arrival_rate", "Arrival rate"),
+    ]
+    for field, label in dimensions:
+        regime_values = sorted({row[field] for row in rows}, key=_label_sort_key)
+        if not regime_values:
+            continue
+        lines.extend(
+            [
+                "",
+                f"### By {label}",
+                "",
+                f"| {label} | Method | n | Mean tardiness | Median | 95% CI |",
+                "|---:|---|---:|---:|---:|---:|",
+            ]
+        )
+        for regime_value in regime_values:
+            for method in methods:
+                method_values = [
+                    row
+                    for row in rows
+                    if row[field] == regime_value and row["method"] == method and row.get("status", "ok") == "ok"
+                ]
+                if not method_values:
+                    continue
+                tardiness_values = [float(row["tardiness_rate"]) for row in method_values]
+                lines.append(
+                    "| {} | {} | {} | {} | {} | {} |".format(
+                        regime_value,
+                        method,
+                        len(method_values),
+                        _format_float(_mean(tardiness_values)),
+                        _format_float(_median(tardiness_values)),
+                        _format_float(_ci95(tardiness_values)),
+                    )
+                )
 
 
 def _checkpoint_label(checkpoint_path: Path) -> str:
@@ -487,6 +589,201 @@ def run_checkpoint_generalization_study(
         "Use it as an external generalization check; do not treat it as a replacement for retraining on a larger protocol.\n"
     )
     summary_path.write_text(summary, encoding="utf-8")
+    return csv_path, summary_path
+
+
+def _policy_trace_row(
+    *,
+    dataset_path: Path,
+    checkpoint_path: Path,
+    checkpoint_label: str,
+    trace,
+) -> dict[str, str]:
+    row = {
+        "instance_id": dataset_path.stem,
+        "dataset_path": str(dataset_path),
+        "checkpoint_label": checkpoint_label,
+        "checkpoint_path": str(checkpoint_path),
+        "tardiness_rate": repr(trace.result.tardiness_rate),
+        "makespan": repr(trace.result.makespan),
+        "mean_machine_utilization": repr(trace.result.mean_machine_utilization),
+        "decisions": str(trace.decisions),
+        "dominant_action": trace.dominant_action,
+        "dominant_fraction": repr(trace.dominant_fraction),
+        "status": "ok",
+        "error": "",
+    }
+    for heuristic in HEURISTICS:
+        count = trace.action_counts.get(heuristic, 0)
+        row[f"count_{heuristic}"] = str(count)
+        row[f"fraction_{heuristic}"] = repr(count / trace.decisions if trace.decisions else 0.0)
+    return row
+
+
+def _policy_trace_error_row(
+    *,
+    dataset_path: Path,
+    checkpoint_path: Path,
+    checkpoint_label: str,
+    error: Exception,
+) -> dict[str, str]:
+    row = {
+        "instance_id": dataset_path.stem,
+        "dataset_path": str(dataset_path),
+        "checkpoint_label": checkpoint_label,
+        "checkpoint_path": str(checkpoint_path),
+        "tardiness_rate": "nan",
+        "makespan": "nan",
+        "mean_machine_utilization": "nan",
+        "decisions": "0",
+        "dominant_action": "",
+        "dominant_fraction": "0.0",
+        "status": "error",
+        "error": str(error),
+    }
+    for heuristic in HEURISTICS:
+        row[f"count_{heuristic}"] = "0"
+        row[f"fraction_{heuristic}"] = "0.0"
+    return row
+
+
+def make_policy_trace_summary(rows: list[dict[str, str]], *, checkpoint_path: str | Path) -> str:
+    """Create a Markdown summary for DQN action-selection diagnostics."""
+
+    ok_rows = [row for row in rows if row.get("status", "ok") == "ok"]
+    total_decisions = sum(int(row["decisions"]) for row in ok_rows)
+    lines = [
+        "# Policy Trace Summary",
+        "",
+        f"- Checkpoint: `{checkpoint_path}`",
+        f"- Instances traced: {len(ok_rows)}",
+        f"- Total dispatching decisions: {total_decisions}",
+    ]
+    if not ok_rows:
+        lines.extend(["", "No successful policy traces were completed."])
+        return "\n".join(lines) + "\n"
+
+    tardiness_values = [float(row["tardiness_rate"]) for row in ok_rows]
+    lines.extend(
+        [
+            f"- Mean tardiness: {_format_float(_mean(tardiness_values))}",
+            "",
+            "## Action Distribution",
+            "",
+            "| Action | Count | Fraction |",
+            "|---|---:|---:|",
+        ]
+    )
+    for heuristic in HEURISTICS:
+        count = sum(int(row[f"count_{heuristic}"]) for row in ok_rows)
+        fraction = count / total_decisions if total_decisions else 0.0
+        lines.append(f"| {heuristic} | {count} | {_format_float(fraction)} |")
+
+    dominant_counts: dict[str, int] = defaultdict(int)
+    for row in ok_rows:
+        dominant_counts[row["dominant_action"]] += 1
+    lines.extend(
+        [
+            "",
+            "## Dominant Action Per Instance",
+            "",
+            "| Action | Instances |",
+            "|---|---:|",
+        ]
+    )
+    for action, count in sorted(dominant_counts.items(), key=lambda item: (-item[1], item[0])):
+        lines.append(f"| {action} | {count} |")
+
+    lines.extend(
+        [
+            "",
+            "## Instance Details",
+            "",
+            "| Instance | Decisions | Dominant action | Dominant fraction | Tardiness |",
+            "|---|---:|---|---:|---:|",
+        ]
+    )
+    for row in ok_rows:
+        lines.append(
+            "| {} | {} | {} | {} | {} |".format(
+                row["instance_id"],
+                row["decisions"],
+                row["dominant_action"],
+                _format_float(float(row["dominant_fraction"])),
+                _format_float(float(row["tardiness_rate"])),
+            )
+        )
+
+    error_rows = [row for row in rows if row.get("status") == "error"]
+    if error_rows:
+        lines.extend(["", "## Errors", "", "| Instance | Error |", "|---|---|"])
+        for row in error_rows:
+            lines.append(f"| {row['instance_id']} | {row['error']} |")
+    return "\n".join(lines) + "\n"
+
+
+def run_policy_trace_study(
+    *,
+    output_dir: str | Path,
+    checkpoint_path: str | Path,
+    dataset_paths: list[str | Path],
+    checkpoint_label: str = "DQN",
+) -> tuple[Path, Path]:
+    """Trace which dispatching-rule action a checkpoint selects on datasets."""
+
+    checkpoint = Path(checkpoint_path)
+    if not checkpoint.exists():
+        raise FileNotFoundError(checkpoint)
+    datasets = [Path(path) for path in dataset_paths]
+    if not datasets:
+        raise ValueError("dataset_paths must contain at least one dataset")
+    for dataset in datasets:
+        if not dataset.exists():
+            raise FileNotFoundError(dataset)
+
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    _write_json(
+        output_path / "policy_trace_config.json",
+        {
+            "study_type": "policy_trace",
+            "checkpoint_path": str(checkpoint),
+            "checkpoint_label": checkpoint_label,
+            "dataset_paths": [str(path) for path in datasets],
+        },
+    )
+
+    sample_env = make_env(dataset_path=datasets[0])
+    agent = load_checkpoint_agent(
+        checkpoint_path=checkpoint,
+        input_dim=sample_env.observation_space.shape[0],
+        action_size=sample_env.action_space.n,
+    )
+
+    csv_path = output_path / "policy_trace.csv"
+    rows: list[dict[str, str]] = []
+    for dataset_path in datasets:
+        try:
+            env = make_env(dataset_path=dataset_path)
+            trace = trace_scheduling_actions(env, env.world, name=checkpoint_label, agent=agent)
+            row = _policy_trace_row(
+                dataset_path=dataset_path,
+                checkpoint_path=checkpoint,
+                checkpoint_label=checkpoint_label,
+                trace=trace,
+            )
+        except Exception as exc:  # noqa: BLE001 - diagnostics should capture failures.
+            row = _policy_trace_error_row(
+                dataset_path=dataset_path,
+                checkpoint_path=checkpoint,
+                checkpoint_label=checkpoint_label,
+                error=exc,
+            )
+        rows.append(row)
+        _write_rows(csv_path, rows)
+
+    summary_path = output_path / "policy_trace_summary.md"
+    summary_path.write_text(make_policy_trace_summary(rows, checkpoint_path=checkpoint), encoding="utf-8")
     return csv_path, summary_path
 
 
@@ -945,18 +1242,7 @@ def make_rl_markdown_summary(rows: list[dict[str, str]], training_rows: list[dic
 
     summary_rows = []
     for method, values in method_rows.items():
-        tardiness_values = [float(row["tardiness_rate"]) for row in values]
-        summary_rows.append(
-            {
-                "method": method,
-                "n": len(values),
-                "mean_tardiness": _mean(tardiness_values),
-                "std_tardiness": _std(tardiness_values),
-                "ci95_tardiness": _ci95(tardiness_values),
-                "mean_makespan": _mean([float(row["makespan"]) for row in values]),
-                "mean_utilization": _mean([float(row["mean_machine_utilization"]) for row in values]),
-            }
-        )
+        summary_rows.append(_summarize_method_rows(method, values))
     summary_rows.sort(key=lambda row: row["mean_tardiness"])
 
     lines = [
@@ -1005,17 +1291,18 @@ def make_rl_markdown_summary(rows: list[dict[str, str]], training_rows: list[dic
                 "",
                 "## DQN by Training Seed",
                 "",
-                "| Training seed | Held-out instances | Mean tardiness | Std | 95% CI |",
-                "|---:|---:|---:|---:|---:|",
+                "| Training seed | Held-out instances | Mean tardiness | Median | Std | 95% CI |",
+                "|---:|---:|---:|---:|---:|---:|",
             ]
         )
         for training_seed, seed_rows in sorted(dqn_by_seed.items(), key=lambda item: _label_sort_key(item[0])):
             tardiness_values = [float(row["tardiness_rate"]) for row in seed_rows]
             lines.append(
-                "| {} | {} | {} | {} | {} |".format(
+                "| {} | {} | {} | {} | {} | {} |".format(
                     training_seed,
                     len(seed_rows),
                     _format_float(_mean(tardiness_values)),
+                    _format_float(_median(tardiness_values)),
                     _format_float(_std(tardiness_values)),
                     _format_float(_ci95(tardiness_values)),
                 )
@@ -1026,17 +1313,19 @@ def make_rl_markdown_summary(rows: list[dict[str, str]], training_rows: list[dic
             "",
             "## Test Ranking",
             "",
-            "| Rank | Method | n | Mean tardiness | Std | 95% CI | Mean makespan | Mean utilization |",
-            "|---:|---|---:|---:|---:|---:|---:|---:|",
+            "| Rank | Method | n | Mean tardiness | Median | IQR | Std | 95% CI | Mean makespan | Mean utilization |",
+            "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for rank, row in enumerate(summary_rows, 1):
         lines.append(
-            "| {} | {} | {} | {} | {} | {} | {} | {}% |".format(
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {}% |".format(
                 rank,
                 row["method"],
                 row["n"],
                 _format_float(row["mean_tardiness"]),
+                _format_float(row["median_tardiness"]),
+                _format_float(row["iqr_tardiness"]),
                 _format_float(row["std_tardiness"]),
                 _format_float(row["ci95_tardiness"]),
                 _format_float(row["mean_makespan"]),
@@ -1070,22 +1359,30 @@ def make_rl_markdown_summary(rows: list[dict[str, str]], training_rows: list[dic
                 "",
                 "Negative differences mean DQN had lower tardiness than the baseline.",
                 "",
-                "| Baseline | Compared pairs | Mean tardiness difference | Wilcoxon p | Wins | Losses | Ties |",
-                "|---|---:|---:|---:|---:|---:|---:|",
+                "| Baseline | Compared pairs | Mean difference | Median difference | Wilcoxon p | Rank-biserial r | Wins | Losses | Ties |",
+                "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
             ]
         )
         for baseline_method, differences, wins, losses, ties in comparison_rows:
             lines.append(
-                "| {} | {} | {} | {} | {} | {} | {} |".format(
+                "| {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
                     baseline_method,
                     len(differences),
                     _format_float(_mean(differences)),
+                    _format_float(_median(differences)),
                     _format_float(_wilcoxon_p_value(differences)),
+                    _format_float(_paired_rank_biserial(differences)),
                     wins,
                     losses,
                     ties,
                 )
             )
+
+    ok_test_rows = [row for row in rows if row.get("split", "test") == "test" and row.get("status", "ok") == "ok"]
+    if ok_test_rows:
+        ranked_methods = [str(row["method"]) for row in summary_rows[: min(4, len(summary_rows))]]
+        lines.extend(["", "## Regime Breakdown"])
+        _append_regime_breakdown(lines, ok_test_rows, methods=ranked_methods)
 
     lines.extend(
         [
@@ -1111,20 +1408,7 @@ def make_markdown_summary(rows: list[dict[str, str]], *, reference_method: str =
 
     summary_rows = []
     for method, method_rows in by_method.items():
-        tardiness_values = [float(row["tardiness_rate"]) for row in method_rows]
-        makespans = [float(row["makespan"]) for row in method_rows]
-        utilizations = [float(row["mean_machine_utilization"]) for row in method_rows]
-        summary_rows.append(
-            {
-                "method": method,
-                "n": len(method_rows),
-                "mean_tardiness": _mean(tardiness_values),
-                "std_tardiness": _std(tardiness_values),
-                "ci95_tardiness": _ci95(tardiness_values),
-                "mean_makespan": _mean(makespans),
-                "mean_utilization": _mean(utilizations),
-            }
-        )
+        summary_rows.append(_summarize_method_rows(method, method_rows))
     summary_rows.sort(key=lambda row: row["mean_tardiness"])
 
     lines = [
@@ -1137,17 +1421,19 @@ def make_markdown_summary(rows: list[dict[str, str]], *, reference_method: str =
         "",
         "## Method Ranking",
         "",
-        "| Rank | Method | n | Mean tardiness | Std | 95% CI | Mean makespan | Mean utilization |",
-        "|---:|---|---:|---:|---:|---:|---:|---:|",
+        "| Rank | Method | n | Mean tardiness | Median | IQR | Std | 95% CI | Mean makespan | Mean utilization |",
+        "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
 
     for rank, row in enumerate(summary_rows, 1):
         lines.append(
-            "| {} | {} | {} | {} | {} | {} | {} | {}% |".format(
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {}% |".format(
                 rank,
                 row["method"],
                 row["n"],
                 _format_float(row["mean_tardiness"]),
+                _format_float(row["median_tardiness"]),
+                _format_float(row["iqr_tardiness"]),
                 _format_float(row["std_tardiness"]),
                 _format_float(row["ci95_tardiness"]),
                 _format_float(row["mean_makespan"]),
@@ -1161,8 +1447,8 @@ def make_markdown_summary(rows: list[dict[str, str]], *, reference_method: str =
                 "",
                 f"## Paired Comparison Against `{reference_method}`",
                 "",
-                "| Method | Compared instances | Mean tardiness difference | Wilcoxon p | Wins | Losses | Ties |",
-                "|---|---:|---:|---:|---:|---:|---:|",
+                "| Method | Compared instances | Mean difference | Median difference | Wilcoxon p | Rank-biserial r | Wins | Losses | Ties |",
+                "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
             ]
         )
         paired_rows = []
@@ -1188,16 +1474,24 @@ def make_markdown_summary(rows: list[dict[str, str]], *, reference_method: str =
         paired_rows.sort(key=lambda item: _mean(item[1]) if item[1] else 0.0)
         for method, differences, wins, losses, ties in paired_rows:
             lines.append(
-                "| {} | {} | {} | {} | {} | {} | {} |".format(
+                "| {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
                     method,
                     len(differences),
                     _format_float(_mean(differences)),
+                    _format_float(_median(differences)),
                     _format_float(_wilcoxon_p_value(differences)),
+                    _format_float(_paired_rank_biserial(differences)),
                     wins,
                     losses,
                     ties,
                 )
             )
+
+    ok_rows = [row for row in rows if row.get("status", "ok") == "ok"]
+    if ok_rows:
+        ranked_methods = [str(row["method"]) for row in summary_rows[: min(4, len(summary_rows))]]
+        lines.extend(["", "## Regime Breakdown"])
+        _append_regime_breakdown(lines, ok_rows, methods=ranked_methods)
 
     lines.extend(
         [

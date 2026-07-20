@@ -90,6 +90,12 @@ Evaluate existing trained checkpoints on a broader held-out matrix:
 python -m djss_rl.cli checkpoint-study --checkpoint-glob 'outputs/paper-study-20260719/dense/agents/seed-*/Best_agent*.pth' --jobs-values 20,50,100 --ddt-values 0.5,1.0,1.5 --arrival-rates 50,100,200 --test-instance-seeds 606,707,808,909,1001
 ```
 
+Trace which dispatching-rule actions a saved DQN checkpoint selects:
+
+```bash
+python -m djss_rl.cli trace-policy --checkpoint 'outputs/expanded-dense-pilot-20260720/dense/agents/seed-66/Best_agent_hidden_layers_7neurons_per_layer_[207, 145, 78, 79, 205, 105, 217]_batch_size_32.pth' --dataset-glob 'outputs/expanded-dense-pilot-20260720/dense/test/datasets/*.ini'
+```
+
 Run one training episode from the restored dataset:
 
 ```bash
@@ -110,4 +116,6 @@ python -m unittest discover -s tests -v
 - The larger generated-instance baseline matrix found `SPT_DR_O` to be the strongest broad baseline in this implementation.
 - Held-out DQN studies run successfully. The 10-seed dense paper-study variant significantly outperformed the primary `SPT_DR_O` baseline on the held-out RL matrix.
 - The broad checkpoint study evaluated the dense checkpoints on 135 additional held-out instances. DQN beat several weaker rules and slightly beat `ATC_DR_O`, but `SPT_DR_O` remained strongest overall.
+- A short expanded-matrix dense retraining pilot completed successfully, but 100 episodes and 1 seed were not enough to beat `SPT_DR_O`.
+- Policy tracing showed the expanded-pilot DQN selected `ATC_DR_O` for all 12,314 held-out dispatching decisions, so the exact ATC match is a learned single-rule policy rather than a distinct RL improvement.
 - Publication-strength claims should be framed around a reproducible validation-selected DQN pipeline with significant improvement over SPT on the selected held-out matrix. Stronger claims need expanded-matrix retraining and benchmark-derived instances.

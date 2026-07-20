@@ -32,6 +32,38 @@ This evaluates 10 dense checkpoints over 135 additional generated instances and 
 
 Completed July 20, 2026: all 2,565 rows completed with 0 failures. Overall mean tardiness ranked `SPT_DR_O` first (`0.320356`), `MRT_DR_O` second (`0.368362`), DQN third (`0.371964` across 1,350 checkpoint-instance rows), and `ATC_DR_O` fourth (`0.375809`). DQN beat ATC overall by a small but significant margin, but it lost to SPT on the broad matrix. Use this as evidence of partial external generalization and as motivation for the full retraining study.
 
+## Expanded Dense Pilot
+
+A short expanded-matrix retraining pilot has also been completed:
+
+```bash
+python3 -m djss_rl.cli paper-study \
+  --output-dir outputs/expanded-dense-pilot-20260720 \
+  --variants dense \
+  --jobs-values 20,50,100 \
+  --ddt-values 0.5,1.0,1.5 \
+  --arrival-rates 50,100,200 \
+  --train-instance-seeds 101 \
+  --validation-instance-seeds 505 \
+  --test-instance-seeds 707 \
+  --training-seeds 66 \
+  --episodes 100 \
+  --validation-every 25
+```
+
+Completed July 20, 2026: this run confirmed the expanded-matrix training workflow is feasible. The best validation checkpoint was selected at episode 74 with validation tardiness `0.377581`. On 27 held-out test instances, DQN matched `ATC_DR_O` exactly with mean tardiness `0.364898`, beat several weaker rules, but lost to `SPT_DR_O` at `0.315177` (`DQN-SPT = +0.049722`, Wilcoxon `p = 0.003249`). Treat this as a feasibility and budget-sizing pilot, not publication evidence.
+
+A policy trace was added after this pilot:
+
+```bash
+python3 -m djss_rl.cli trace-policy \
+  --output-dir outputs/expanded-dense-pilot-20260720/policy-trace \
+  --checkpoint 'outputs/expanded-dense-pilot-20260720/dense/agents/seed-66/Best_agent_hidden_layers_7neurons_per_layer_[207, 145, 78, 79, 205, 105, 217]_batch_size_32.pth' \
+  --dataset-glob 'outputs/expanded-dense-pilot-20260720/dense/test/datasets/*.ini'
+```
+
+Completed July 20, 2026: the selected DQN checkpoint chose `ATC_DR_O` for 12,314 of 12,314 dispatching decisions across the 27 held-out test instances. This explains the exact match with ATC and should be reported as a policy-collapse diagnostic. The full retraining study should include action-distribution traces, not only tardiness metrics.
+
 ## Full Retraining Study
 
 For a stronger submission, retrain under the expanded matrix rather than only evaluating existing checkpoints:
@@ -95,6 +127,7 @@ Report all final results using held-out test rows only:
 - per-regime breakdown by job count, due-date tightness, and arrival rate
 - runtime or makespan comparison
 - validation-selection method and seed list
+- DQN action-distribution trace for each selected checkpoint
 - raw CSV and config paths
 
 The abstract should headline the statistically significant SPT result. The limitations section should say that ATC-style due-date-aware dispatching remains an important future-work target.

@@ -40,6 +40,25 @@ class SchedulingResult:
     mean_machine_utilization: float
 
 
+@dataclass(frozen=True)
+class SchedulingTraceResult:
+    result: SchedulingResult
+    action_counts: dict[str, int]
+    decisions: int
+
+    @property
+    def dominant_action(self) -> str:
+        if not self.action_counts:
+            return ""
+        return max(self.action_counts, key=self.action_counts.get)
+
+    @property
+    def dominant_fraction(self) -> float:
+        if not self.decisions:
+            return 0.0
+        return self.action_counts[self.dominant_action] / self.decisions
+
+
 def run_scheduling(
     env,
     world,
@@ -87,6 +106,60 @@ def run_scheduling(
         energy_consumption=float(world.total_energy_consumption),
         mean_machine_utilization=float(np.mean([machine.utilization for machine in world.machines]) * 100),
     )
+
+
+def trace_scheduling_actions(
+    env,
+    world,
+    *,
+    name: str,
+    decision_rule: int | None = None,
+    agent: DQNAgent | None = None,
+    max_iterations: int = 1_000_000,
+) -> SchedulingTraceResult:
+    """Run a scheduling episode and record which sequencing action is selected."""
+
+    env.reset()
+    iterations = 0
+    action_counts = {heuristic: 0 for heuristic in HEURISTICS}
+    decisions = 0
+
+    while not all(job.CRJ == 1 for job in world.jobs):
+        iterations += 1
+        if iterations > max_iterations:
+            raise RuntimeError(f"{name} exceeded {max_iterations} scheduling iterations.")
+
+        if not (any(job.legal for job in world.jobs) and any(machine.request for machine in world.machines)):
+            env.update_state()
+            continue
+
+        world.ready_machine = next((machine for machine in world.machines if machine.request), None)
+        env.get_legal_actions(world.ready_machine)
+
+        if world.ready_machine.legal_actions:
+            if agent is not None:
+                state = env._get_obs
+                action = agent.get_action(state, world)
+            elif decision_rule is not None:
+                action = decision_rule
+            else:
+                raise ValueError("Either decision_rule or agent must be provided.")
+            action_counts[HEURISTICS[action]] += 1
+            decisions += 1
+            env.step(action)
+        else:
+            world.ready_machine.request = False
+
+    result = SchedulingResult(
+        name=name,
+        tardiness_rate=float(world.tardiness_rate),
+        makespan=env._get_makespan,
+        corrective_maintenance_actions=float(np.sum([machine.CM_actions_counts for machine in world.machines])),
+        preventive_maintenance_actions=float(np.sum([machine.PM_actions_counts for machine in world.machines])),
+        energy_consumption=float(world.total_energy_consumption),
+        mean_machine_utilization=float(np.mean([machine.utilization for machine in world.machines]) * 100),
+    )
+    return SchedulingTraceResult(result=result, action_counts=action_counts, decisions=decisions)
 
 
 def evaluate_baselines(dataset_path: str | Path | None = DEFAULT_DATASET) -> list[SchedulingResult]:
