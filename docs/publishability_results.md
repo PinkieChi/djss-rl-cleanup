@@ -1,6 +1,6 @@
 # Publishability Experiment Results
 
-This document records the larger generated-instance experiments run on July 18-19, 2026. The raw CSV, logs, generated datasets, and trained checkpoints are stored under `outputs/` locally and are packaged separately for backup.
+This document records the larger generated-instance experiments run on July 18-20, 2026. The raw CSV, logs, generated datasets, and trained checkpoints are stored under `outputs/` locally and are packaged separately for backup.
 
 ## Large Baseline Matrix
 
@@ -100,8 +100,31 @@ Held-out test ranking:
 
 DQN improved from the previous held-out mean tardiness `0.282789` to `0.277797`. It beat weaker baselines such as `CR_DR_O`, `EDD_DR_O`, `MRT_DR_O`, `MCR_DR_O`, and `LSPO_DR_O` in paired tests, but it still did not beat `SPT_DR_O` or `ATC_DR_O`. Against `SPT_DR_O`, DQN had mean difference `+0.003983`, Wilcoxon `p = 0.427246`, with 5 wins, 7 losses, and 12 ties.
 
+## Multi-Variant Paper Study
+
+Command:
+
+```bash
+python3 -m djss_rl.cli paper-study --output-dir outputs/paper-study-20260719 --variants dense,sharp,dense_slow_epsilon,dense_low_lr --jobs-values 20 --ddt-values 0.5,1.0 --arrival-rates 50,100 --train-instance-seeds 101,202 --validation-instance-seeds 505 --test-instance-seeds 303,404 --training-seeds 11,22,33,44,55,66,77,88,99,110 --episodes 1000 --validation-every 50
+```
+
+This run trained 40 DQN checkpoints: 4 reward/hyperparameter variants, 10 independent training seeds per variant, and 1,000 episodes per seed. Each checkpoint was selected by validation tardiness and evaluated only on held-out test instances. All 912 validation/test result rows completed successfully, with 0 failed rows.
+
+Variant ranking:
+
+| Rank | Variant | Training runs | DQN mean tardiness | SPT mean tardiness | DQN-SPT | SPT p | W/L/T vs SPT | ATC mean tardiness | DQN-ATC | ATC p | Errors |
+|---:|---|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|
+| 1 | dense | 10 | 0.267804 | 0.273815 | -0.006011 | 0.002808 | 35/18/27 | 0.266695 | 0.001109 | 0.123047 | 0 |
+| 2 | dense_slow_epsilon | 10 | 0.268119 | 0.273815 | -0.005696 | 0.002483 | 32/16/32 | 0.266695 | 0.001424 | 0.139648 | 0 |
+| 3 | dense_low_lr | 10 | 0.270419 | 0.273815 | -0.003396 | 0.077089 | 33/21/26 | 0.266695 | 0.003724 | 0.007407 | 0 |
+| 4 | sharp | 10 | 0.272242 | 0.273815 | -0.001573 | 0.310247 | 35/27/18 | 0.266695 | 0.005548 | 0.036303 | 0 |
+
+The best variant was the dense tardiness-delta reward with the default learning rate and epsilon decay. Its DQN mean held-out tardiness was `0.267804`, compared with `0.273815` for `SPT_DR_O`. The paired comparison against SPT was significant (`p = 0.002808`) with 35 wins, 18 losses, and 27 ties across 80 paired test comparisons.
+
+The dense DQN did not significantly outperform `ATC_DR_O`. It was slightly worse on mean tardiness (`+0.001109`) and the paired comparison was not significant (`p = 0.123047`), with most comparisons tied. The correct publication-strength claim is therefore that validation-selected dense-reward DQN is competitive with the strongest dispatching rules and significantly improves on SPT in this held-out matrix, not that it dominates all classical heuristics.
+
 ## Interpretation
 
-The expanded baseline matrix shows that `SPT_DR_O` is the strongest broad default baseline in this implementation. The held-out DQN studies are encouraging as engineering milestones because the agent runs reproducibly and generalizes into the neighborhood of strong dispatching rules. Validation-based checkpointing and dense reward shaping improved the DQN result, but not enough to support a publication claim that DQN outperforms simple heuristics.
+The expanded baseline matrix shows that `SPT_DR_O` is the strongest broad default baseline across the larger generated-instance grid, while `ATC_DR_O` is the strongest rule on the smaller held-out RL test matrix. The DQN studies are now more than smoke tests: the 10-seed dense paper study shows that validation-based checkpointing and dense reward shaping can produce a DQN policy that significantly beats SPT on the held-out RL matrix.
 
-The next publishable step is not another small run of the same model. The research contribution should improve the RL formulation further: richer state features, stronger action masking or rule-selection structure, validation-based hyperparameter tuning, more training seeds, and comparisons on larger held-out matrices that include standard benchmark families where possible.
+The main limitation is that the best DQN remains statistically indistinguishable from ATC and was evaluated on a relatively small held-out matrix. A careful paper can claim a reproducible RL pipeline and a competitive DQN variant with statistically significant improvement over SPT on the chosen held-out matrix. A stronger paper should extend the same protocol to larger held-out matrices, add standard benchmark-derived instances where possible, and improve the RL formulation enough to challenge ATC rather than only SPT.

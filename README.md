@@ -74,7 +74,7 @@ python -m djss_rl.cli rl-study --jobs-values 20 --ddt-values 0.5,1.0 --arrival-r
 Run a resumable multi-variant paper study:
 
 ```bash
-python -m djss_rl.cli paper-study --variants dense,sharp --jobs-values 20 --ddt-values 0.5,1.0 --arrival-rates 50,100 --train-instance-seeds 101,202 --validation-instance-seeds 505 --test-instance-seeds 303,404 --training-seeds 11,22,33,44,55,66,77,88,99,110 --episodes 1000 --validation-every 50
+python -m djss_rl.cli paper-study --variants dense,sharp,dense_slow_epsilon,dense_low_lr --jobs-values 20 --ddt-values 0.5,1.0 --arrival-rates 50,100 --train-instance-seeds 101,202 --validation-instance-seeds 505 --test-instance-seeds 303,404 --training-seeds 11,22,33,44,55,66,77,88,99,110 --episodes 1000 --validation-every 50
 ```
 
 Run one training episode from the restored dataset:
@@ -95,5 +95,5 @@ python -m unittest discover -s tests -v
 - The project now exposes environment, agent, training, and evaluation code through the `djss_rl` package. The notebook remains as the research narrative and compatibility reference.
 - The saved checkpoint evaluated successfully, but it did not beat the strongest simple dispatching baseline on the restored dataset.
 - The larger generated-instance baseline matrix found `SPT_DR_O` to be the strongest broad baseline in this implementation.
-- Held-out DQN studies run successfully; validation-selected dense reward improved DQN, but it still did not significantly outperform SPT on the held-out test set.
-- Publication-strength claims need stronger RL formulation work, larger held-out matrices, more training seeds, validation-based checkpointing, and ideally benchmark-derived instances.
+- Held-out DQN studies run successfully. The 10-seed dense paper-study variant significantly outperformed `SPT_DR_O` on the held-out RL matrix, but remained statistically indistinguishable from `ATC_DR_O`.
+- Publication-strength claims should be framed around a reproducible validation-selected DQN pipeline that is competitive with strong dispatching rules. Stronger claims need larger held-out matrices and ideally benchmark-derived instances.

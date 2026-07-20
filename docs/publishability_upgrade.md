@@ -58,13 +58,14 @@ Key result:
 - The held-out DQN study trained 3 seeds for 1,000 episodes each and evaluated them on 8 held-out instances.
 - DQN mean held-out tardiness was `0.282789`, close to `SPT_DR_O` at `0.273815`, but not better. The paired comparison against SPT had Wilcoxon `p = 0.224728`.
 - A validation-selected dense-reward DQN study improved DQN mean held-out tardiness to `0.277797`, but it still did not beat `SPT_DR_O` or `ATC_DR_O`.
+- A 4-variant paper study then trained 40 DQN checkpoints with 10 training seeds per variant. The best dense-reward variant reached mean held-out tardiness `0.267804`, significantly better than `SPT_DR_O` at `0.273815` (`p = 0.002808`), but still statistically indistinguishable from `ATC_DR_O` at `0.266695` (`p = 0.123047`).
 
 ## Next Publishable Step
 
-Use these results as the baseline for improving the RL method itself. The next full paper-quality study should train with validation-based checkpointing, tune reward/state design, run more training seeds, and evaluate on larger held-out matrices:
+Use these results as the baseline for improving and reporting the RL method itself. The current evidence supports a careful paper claim that a validation-selected dense-reward DQN is competitive with strong dispatching rules and significantly improves over SPT on the held-out RL matrix. The next full paper-quality extension should evaluate on larger held-out matrices and benchmark-derived instances:
 
 ```bash
 python3 -m djss_rl.cli experiment --output-dir outputs/publishability-baseline-large --jobs-values 20,50,100 --ddt-values 0.5,1.0,1.5 --arrival-rates 50,100,200 --seeds 101,202,303,404,505
 ```
 
-The `rl-study` command provides the held-out evaluation path. For a publishable claim, expand it to at least 10 training seeds per configuration, keep validation-based model selection separate from final test reporting, and compare reward/state/hyperparameter variants before locking the protocol.
+The `paper-study` command now provides the resumable held-out evaluation path with at least 10 training seeds per configuration, validation-based model selection, and reward/hyperparameter variant comparison.
