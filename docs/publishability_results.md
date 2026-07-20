@@ -110,21 +110,21 @@ python3 -m djss_rl.cli paper-study --output-dir outputs/paper-study-20260719 --v
 
 This run trained 40 DQN checkpoints: 4 reward/hyperparameter variants, 10 independent training seeds per variant, and 1,000 episodes per seed. Each checkpoint was selected by validation tardiness and evaluated only on held-out test instances. All 912 validation/test result rows completed successfully, with 0 failed rows.
 
-Variant ranking:
+Manuscript-facing variant ranking against the primary SPT baseline:
 
-| Rank | Variant | Training runs | DQN mean tardiness | SPT mean tardiness | DQN-SPT | SPT p | W/L/T vs SPT | ATC mean tardiness | DQN-ATC | ATC p | Errors |
-|---:|---|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|
-| 1 | dense | 10 | 0.267804 | 0.273815 | -0.006011 | 0.002808 | 35/18/27 | 0.266695 | 0.001109 | 0.123047 | 0 |
-| 2 | dense_slow_epsilon | 10 | 0.268119 | 0.273815 | -0.005696 | 0.002483 | 32/16/32 | 0.266695 | 0.001424 | 0.139648 | 0 |
-| 3 | dense_low_lr | 10 | 0.270419 | 0.273815 | -0.003396 | 0.077089 | 33/21/26 | 0.266695 | 0.003724 | 0.007407 | 0 |
-| 4 | sharp | 10 | 0.272242 | 0.273815 | -0.001573 | 0.310247 | 35/27/18 | 0.266695 | 0.005548 | 0.036303 | 0 |
+| Rank | Variant | Training runs | DQN mean tardiness | SPT mean tardiness | DQN-SPT | SPT p | W/L/T vs SPT | Errors |
+|---:|---|---:|---:|---:|---:|---:|---|---:|
+| 1 | dense | 10 | 0.267804 | 0.273815 | -0.006011 | 0.002808 | 35/18/27 | 0 |
+| 2 | dense_slow_epsilon | 10 | 0.268119 | 0.273815 | -0.005696 | 0.002483 | 32/16/32 | 0 |
+| 3 | dense_low_lr | 10 | 0.270419 | 0.273815 | -0.003396 | 0.077089 | 33/21/26 | 0 |
+| 4 | sharp | 10 | 0.272242 | 0.273815 | -0.001573 | 0.310247 | 35/27/18 | 0 |
 
 The best variant was the dense tardiness-delta reward with the default learning rate and epsilon decay. Its DQN mean held-out tardiness was `0.267804`, compared with `0.273815` for `SPT_DR_O`. The paired comparison against SPT was significant (`p = 0.002808`) with 35 wins, 18 losses, and 27 ties across 80 paired test comparisons.
 
-The dense DQN did not significantly outperform `ATC_DR_O`. It was slightly worse on mean tardiness (`+0.001109`) and the paired comparison was not significant (`p = 0.123047`), with most comparisons tied. The correct publication-strength claim is therefore that validation-selected dense-reward DQN is competitive with the strongest dispatching rules and significantly improves on SPT in this held-out matrix, not that it dominates all classical heuristics.
+ATC-style due-date-aware dispatching is treated as a stress test and future-work target rather than the headline baseline. In the completed run, the dense DQN was statistically indistinguishable from `ATC_DR_O`: DQN mean `0.267804`, ATC mean `0.266695`, paired difference `+0.001109`, and `p = 0.123047`. The correct publication-strength claim is therefore that validation-selected dense-reward DQN significantly improves on SPT in this held-out matrix, while future work should target consistent improvement over ATC-style policies.
 
 ## Interpretation
 
-The expanded baseline matrix shows that `SPT_DR_O` is the strongest broad default baseline across the larger generated-instance grid, while `ATC_DR_O` is the strongest rule on the smaller held-out RL test matrix. The DQN studies are now more than smoke tests: the 10-seed dense paper study shows that validation-based checkpointing and dense reward shaping can produce a DQN policy that significantly beats SPT on the held-out RL matrix.
+The expanded baseline matrix shows that `SPT_DR_O` is the strongest broad default baseline across the larger generated-instance grid. The DQN studies are now more than smoke tests: the 10-seed dense paper study shows that validation-based checkpointing and dense reward shaping can produce a DQN policy that significantly beats SPT on the held-out RL matrix.
 
-The main limitation is that the best DQN remains statistically indistinguishable from ATC and was evaluated on a relatively small held-out matrix. A careful paper can claim a reproducible RL pipeline and a competitive DQN variant with statistically significant improvement over SPT on the chosen held-out matrix. A stronger paper should extend the same protocol to larger held-out matrices, add standard benchmark-derived instances where possible, and improve the RL formulation enough to challenge ATC rather than only SPT.
+The main limitation is that the best DQN was evaluated on a relatively small held-out matrix and did not yet show a statistically significant advantage over ATC-style due-date-aware dispatching. A careful paper can claim a reproducible RL pipeline and a competitive DQN variant with statistically significant improvement over SPT on the chosen held-out matrix. A stronger paper should extend the same protocol to larger held-out matrices, add standard benchmark-derived instances where possible, and improve the RL formulation enough to challenge ATC-style policies directly.

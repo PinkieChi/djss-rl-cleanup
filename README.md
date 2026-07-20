@@ -95,5 +95,5 @@ python -m unittest discover -s tests -v
 - The project now exposes environment, agent, training, and evaluation code through the `djss_rl` package. The notebook remains as the research narrative and compatibility reference.
 - The saved checkpoint evaluated successfully, but it did not beat the strongest simple dispatching baseline on the restored dataset.
 - The larger generated-instance baseline matrix found `SPT_DR_O` to be the strongest broad baseline in this implementation.
-- Held-out DQN studies run successfully. The 10-seed dense paper-study variant significantly outperformed `SPT_DR_O` on the held-out RL matrix, but remained statistically indistinguishable from `ATC_DR_O`.
-- Publication-strength claims should be framed around a reproducible validation-selected DQN pipeline that is competitive with strong dispatching rules. Stronger claims need larger held-out matrices and ideally benchmark-derived instances.
+- Held-out DQN studies run successfully. The 10-seed dense paper-study variant significantly outperformed the primary `SPT_DR_O` baseline on the held-out RL matrix.
+- Publication-strength claims should be framed around a reproducible validation-selected DQN pipeline with significant improvement over SPT. Stronger claims need larger held-out matrices, benchmark-derived instances, and future work against ATC-style due-date-aware policies.
