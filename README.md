@@ -14,6 +14,7 @@ This project explores dynamic job shop scheduling with a Dueling Double-DQN-styl
 - `docs/project_review.md` - summary of the project and recommended next improvements.
 - `docs/evaluation_results.md` - latest safe evaluation results on the restored dataset.
 - `docs/publishability_results.md` - generated-instance baseline and held-out DQN study results.
+- `docs/manuscript_protocol.md` - next publication-grade experiment protocol and commands.
 
 ## Setup
 
@@ -59,6 +60,12 @@ Generate a stable-ID synthetic dataset:
 python -m djss_rl.cli generate-dataset --output outputs/generated/example.ini --jobs 20 --seed 101
 ```
 
+Convert a JSPLIB-style benchmark file into the project `.ini` format:
+
+```bash
+python -m djss_rl.cli convert-jsplib --input benchmarks/ft06.txt --output outputs/benchmarks/ft06_dynamic.ini --ddt 1.0 --arrival-rate 50 --initial-job-fraction 1.0
+```
+
 Run a generated-instance baseline experiment matrix:
 
 ```bash
@@ -75,6 +82,12 @@ Run a resumable multi-variant paper study:
 
 ```bash
 python -m djss_rl.cli paper-study --variants dense,sharp,dense_slow_epsilon,dense_low_lr --jobs-values 20 --ddt-values 0.5,1.0 --arrival-rates 50,100 --train-instance-seeds 101,202 --validation-instance-seeds 505 --test-instance-seeds 303,404 --training-seeds 11,22,33,44,55,66,77,88,99,110 --episodes 1000 --validation-every 50
+```
+
+Evaluate existing trained checkpoints on a broader held-out matrix:
+
+```bash
+python -m djss_rl.cli checkpoint-study --checkpoint-glob 'outputs/paper-study-20260719/dense/agents/seed-*/Best_agent*.pth' --jobs-values 20,50,100 --ddt-values 0.5,1.0,1.5 --arrival-rates 50,100,200 --test-instance-seeds 606,707,808,909,1001
 ```
 
 Run one training episode from the restored dataset:
@@ -96,4 +109,5 @@ python -m unittest discover -s tests -v
 - The saved checkpoint evaluated successfully, but it did not beat the strongest simple dispatching baseline on the restored dataset.
 - The larger generated-instance baseline matrix found `SPT_DR_O` to be the strongest broad baseline in this implementation.
 - Held-out DQN studies run successfully. The 10-seed dense paper-study variant significantly outperformed the primary `SPT_DR_O` baseline on the held-out RL matrix.
-- Publication-strength claims should be framed around a reproducible validation-selected DQN pipeline with significant improvement over SPT. Stronger claims need larger held-out matrices, benchmark-derived instances, and future work against ATC-style due-date-aware policies.
+- The broad checkpoint study evaluated the dense checkpoints on 135 additional held-out instances. DQN beat several weaker rules and slightly beat `ATC_DR_O`, but `SPT_DR_O` remained strongest overall.
+- Publication-strength claims should be framed around a reproducible validation-selected DQN pipeline with significant improvement over SPT on the selected held-out matrix. Stronger claims need expanded-matrix retraining and benchmark-derived instances.

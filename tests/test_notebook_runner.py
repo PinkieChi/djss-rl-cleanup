@@ -2,10 +2,15 @@ import unittest
 from pathlib import Path
 import tempfile
 
-from djss_rl.datasets import DatasetSpec, generate_dataset
+from djss_rl.datasets import DatasetSpec, generate_dataset, generate_dataset_from_jsplib, parse_jsplib
 from djss_rl.environment import make_env
 from djss_rl.evaluation import evaluate_checkpoint, run_scheduling
-from djss_rl.experiments import run_baseline_grid, run_paper_study, run_rl_generalization_study
+from djss_rl.experiments import (
+    run_baseline_grid,
+    run_checkpoint_generalization_study,
+    run_paper_study,
+    run_rl_generalization_study,
+)
 from djss_rl.notebook_runner import execute_notebook
 
 
@@ -99,6 +104,24 @@ class ExperimentInfrastructureTest(unittest.TestCase):
         self.assertEqual(len(env.world.machines), 4)
         self.assertEqual(env.observation_space.shape, (14,))
 
+    def test_jsplib_conversion_loads(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source_path = Path(tmpdir) / "tiny_jsplib.txt"
+            source_path.write_text(
+                "instance tiny\n# jobs machines\n2 2\n0 3 1 2\n1 2 0 4\n",
+                encoding="utf-8",
+            )
+            output_path = Path(tmpdir) / "tiny_jsplib.ini"
+
+            jobs = parse_jsplib(source_path)
+            generate_dataset_from_jsplib(source_path, output_path, initial_job_fraction=1.0)
+            env = make_env(dataset_path=output_path)
+
+        self.assertEqual(jobs, [[(1, 3), (2, 2)], [(2, 2), (1, 4)]])
+        self.assertEqual(len(env.world.jobs), 2)
+        self.assertEqual(len(env.world.machines), 2)
+        self.assertEqual(env.world.operations, 4)
+
     def test_tiny_baseline_grid_writes_results(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             csv_path, summary_path = run_baseline_grid(
@@ -182,6 +205,37 @@ class ExperimentInfrastructureTest(unittest.TestCase):
         self.assertIn("dense", csv_text)
         self.assertIn("Paper Study Summary", summary_text)
         self.assertIn("DQN-SPT", summary_text)
+
+    def test_tiny_checkpoint_study_writes_summary(self):
+        project_dir = Path(__file__).resolve().parents[1]
+        checkpoint_path = (
+            project_dir
+            / "Best_agent_hidden_layers_7neurons_per_layer_[207, 145, 78, 79, 205, 105, 217]_batch_size_32.pth"
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path, summary_path = run_checkpoint_generalization_study(
+                output_dir=tmpdir,
+                checkpoint_paths=[checkpoint_path],
+                checkpoint_labels=["restored"],
+                jobs_values=[6],
+                ddt_values=[0.5],
+                arrival_rates=[50],
+                test_instance_seeds=[22],
+                work_centers=2,
+                machines_per_work_center=2,
+                min_operations=2,
+                max_operations=3,
+                min_processing_time=10,
+                max_processing_time=20,
+            )
+
+            csv_text = csv_path.read_text(encoding="utf-8")
+            summary_text = summary_path.read_text(encoding="utf-8")
+
+        self.assertIn("DQN", csv_text)
+        self.assertIn("restored", csv_text)
+        self.assertIn("RL Generalization Study Summary", summary_text)
+        self.assertIn("Publication Use", summary_text)
 
 
 if __name__ == "__main__":

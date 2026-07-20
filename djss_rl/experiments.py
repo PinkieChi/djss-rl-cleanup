@@ -20,6 +20,7 @@ from .evaluation import (
     HEURISTICS,
     SchedulingResult,
     evaluate_checkpoint,
+    load_checkpoint_agent,
     run_scheduling,
 )
 from .environment import make_env
@@ -57,6 +58,13 @@ def _wilcoxon_p_value(values: list[float]) -> float:
     if len(nonzero_values) < 2:
         return float("nan")
     return float(wilcoxon(nonzero_values).pvalue)
+
+
+def _label_sort_key(value: str) -> tuple[int, int | str]:
+    try:
+        return (0, int(value))
+    except ValueError:
+        return (1, value)
 
 
 def _result_to_row(instance: ExperimentInstance, result: SchedulingResult) -> dict[str, str]:
@@ -333,6 +341,153 @@ def _method_metric(rows: list[dict[str, str]], *, method: str, metric: str = "ta
         if row.get("split", "test") == split and row.get("status", "ok") == "ok" and row["method"] == method
     ]
     return _mean(values)
+
+
+def _checkpoint_label(checkpoint_path: Path) -> str:
+    for part in reversed(checkpoint_path.parts):
+        if part.startswith("seed-"):
+            return part.removeprefix("seed-")
+    return checkpoint_path.stem
+
+
+def run_checkpoint_generalization_study(
+    *,
+    output_dir: str | Path,
+    checkpoint_paths: list[str | Path],
+    jobs_values: list[int],
+    ddt_values: list[float],
+    arrival_rates: list[int],
+    test_instance_seeds: list[int],
+    checkpoint_labels: list[str] | None = None,
+    work_centers: int = 5,
+    machines_per_work_center: int = 3,
+    initial_job_fraction: float = 0.5,
+    min_operations: int = 6,
+    max_operations: int = 10,
+    min_processing_time: int = 60,
+    max_processing_time: int = 120,
+    min_compatible_machines: int = 1,
+    max_compatible_machines: int | None = None,
+) -> tuple[Path, Path]:
+    """Evaluate existing DQN checkpoints on a new held-out generated-instance matrix."""
+
+    checkpoints = [Path(path) for path in checkpoint_paths]
+    if not checkpoints:
+        raise ValueError("checkpoint_paths must contain at least one checkpoint")
+    for checkpoint in checkpoints:
+        if not checkpoint.exists():
+            raise FileNotFoundError(checkpoint)
+    if checkpoint_labels is not None and len(checkpoint_labels) != len(checkpoints):
+        raise ValueError("checkpoint_labels must match checkpoint_paths length")
+    labels = checkpoint_labels or [_checkpoint_label(path) for path in checkpoints]
+
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    _write_json(
+        output_path / "checkpoint_study_config.json",
+        {
+            "study_type": "checkpoint_generalization",
+            "checkpoint_paths": [str(path) for path in checkpoints],
+            "checkpoint_labels": labels,
+            "jobs_values": jobs_values,
+            "ddt_values": ddt_values,
+            "arrival_rates": arrival_rates,
+            "test_instance_seeds": test_instance_seeds,
+            "work_centers": work_centers,
+            "machines_per_work_center": machines_per_work_center,
+            "initial_job_fraction": initial_job_fraction,
+            "min_operations": min_operations,
+            "max_operations": max_operations,
+            "min_processing_time": min_processing_time,
+            "max_processing_time": max_processing_time,
+            "min_compatible_machines": min_compatible_machines,
+            "max_compatible_machines": max_compatible_machines,
+        },
+    )
+
+    test_instances = build_instances(
+        output_dir=output_path / "test",
+        jobs_values=jobs_values,
+        ddt_values=ddt_values,
+        arrival_rates=arrival_rates,
+        seeds=test_instance_seeds,
+        work_centers=work_centers,
+        machines_per_work_center=machines_per_work_center,
+        initial_job_fraction=initial_job_fraction,
+        min_operations=min_operations,
+        max_operations=max_operations,
+        min_processing_time=min_processing_time,
+        max_processing_time=max_processing_time,
+        min_compatible_machines=min_compatible_machines,
+        max_compatible_machines=max_compatible_machines,
+    )
+
+    csv_path = output_path / "checkpoint_results.csv"
+    rows: list[dict[str, str]] = _read_rows(csv_path)
+    completed = {_experiment_row_key(row) for row in rows}
+    for instance in test_instances:
+        for index, heuristic in enumerate(HEURISTICS):
+            row_key = ("test", instance.instance_id, heuristic, "")
+            if row_key in completed:
+                continue
+            try:
+                env = make_env(dataset_path=instance.dataset_path)
+                result = run_scheduling(env, env.world, name=heuristic, decision_rule=index)
+                row = _result_to_row(instance, result)
+            except Exception as exc:  # noqa: BLE001 - experiment rows should capture failures.
+                row = _error_row(instance, method=heuristic, error=exc)
+            row["split"] = "test"
+            row["training_seed"] = ""
+            row["checkpoint_path"] = ""
+            rows.append(row)
+            completed.add(row_key)
+            _write_rows(csv_path, rows)
+
+    for checkpoint, label in zip(checkpoints, labels):
+        sample_env = make_env(dataset_path=test_instances[0].dataset_path)
+        agent = load_checkpoint_agent(
+            checkpoint_path=checkpoint,
+            input_dim=sample_env.observation_space.shape[0],
+            action_size=sample_env.action_space.n,
+        )
+        for instance in test_instances:
+            row_key = ("test", instance.instance_id, "DQN", label)
+            if row_key in completed:
+                continue
+            try:
+                env = make_env(dataset_path=instance.dataset_path)
+                result = run_scheduling(env, env.world, name="Ours", agent=agent)
+                row = _result_to_row(instance, result)
+            except Exception as exc:  # noqa: BLE001 - experiment rows should capture failures.
+                row = _error_row(instance, method="DQN", error=exc)
+            row["method"] = "DQN"
+            row["split"] = "test"
+            row["training_seed"] = label
+            row["checkpoint_path"] = str(checkpoint)
+            rows.append(row)
+            completed.add(row_key)
+            _write_rows(csv_path, rows)
+
+    training_rows = [
+        {
+            "training_seed": label,
+            "episodes": "pretrained",
+            "best_training_score": "",
+            "best_validation_tardiness": "",
+            "checkpoint_selection_metric": "pretrained_checkpoint",
+            "checkpoint_path": str(checkpoint),
+        }
+        for checkpoint, label in zip(checkpoints, labels)
+    ]
+    summary_path = output_path / "checkpoint_summary.md"
+    summary = make_rl_markdown_summary(rows, training_rows)
+    summary += (
+        "\n## Publication Use\n\n"
+        "This study evaluates already-trained checkpoints on additional held-out generated instances. "
+        "Use it as an external generalization check; do not treat it as a replacement for retraining on a larger protocol.\n"
+    )
+    summary_path.write_text(summary, encoding="utf-8")
+    return csv_path, summary_path
 
 
 def run_rl_generalization_study(
@@ -854,7 +1009,7 @@ def make_rl_markdown_summary(rows: list[dict[str, str]], training_rows: list[dic
                 "|---:|---:|---:|---:|---:|",
             ]
         )
-        for training_seed, seed_rows in sorted(dqn_by_seed.items(), key=lambda item: int(item[0])):
+        for training_seed, seed_rows in sorted(dqn_by_seed.items(), key=lambda item: _label_sort_key(item[0])):
             tardiness_values = [float(row["tardiness_rate"]) for row in seed_rows]
             lines.append(
                 "| {} | {} | {} | {} | {} |".format(

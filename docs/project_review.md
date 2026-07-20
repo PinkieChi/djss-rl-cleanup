@@ -20,6 +20,10 @@ The agent is a PyTorch Dueling DQN with target-network updates and prioritized r
 - Added the `djss_rl` package with importable environment, scenario, agent, training, and evaluation modules.
 - Updated the CLI to run from extracted modules instead of replaying notebook cells.
 - Added package-level smoke tests for dataset loading, reset/step behavior, baseline scheduling, and checkpoint evaluation.
+- Added JSPLIB-style benchmark conversion into the project `.ini` format.
+- Added a checkpoint-study workflow for evaluating existing trained DQN checkpoints on broader held-out matrices.
+- Ran the broad checkpoint generalization study over 135 additional generated instances and recorded the result in `docs/publishability_results.md`.
+- Added a manuscript protocol that separates the current SPT-centered claim from future ATC-style stress tests.
 - Fixed the maintenance action index check so maintenance uses the extra action instead of colliding with a dispatching rule.
 - Fixed the total-cost calculation to include tardiness, energy, and maintenance cost instead of double-counting maintenance.
 - Fixed the makespan call in evaluation.
@@ -35,4 +39,5 @@ The agent is a PyTorch Dueling DQN with target-network updates and prioritized r
 4. Add regression tests for all dispatching-rule results and selected maintenance-enabled scenarios.
 5. Consider using W&B artifacts or GitHub releases for model checkpoints rather than keeping large experiment outputs in the repo.
 6. Re-run training with a fixed seed and compare against dispatching-rule baselines before treating the checkpoint as the preferred policy.
-7. Expand the new generated-instance experiment matrix and use it as the train/validation/test backbone for publishable RL comparisons.
+7. Expand the generated-instance train/validation/test matrix and use it as the backbone for publishable RL comparisons.
+8. Add benchmark-derived JSPLIB instances to the final evaluation suite.

@@ -123,8 +123,53 @@ The best variant was the dense tardiness-delta reward with the default learning 
 
 ATC-style due-date-aware dispatching is treated as a stress test and future-work target rather than the headline baseline. In the completed run, the dense DQN was statistically indistinguishable from `ATC_DR_O`: DQN mean `0.267804`, ATC mean `0.266695`, paired difference `+0.001109`, and `p = 0.123047`. The correct publication-strength claim is therefore that validation-selected dense-reward DQN significantly improves on SPT in this held-out matrix, while future work should target consistent improvement over ATC-style policies.
 
+## Broad Checkpoint Generalization Study
+
+Command:
+
+```bash
+python3 -m djss_rl.cli checkpoint-study --output-dir outputs/dense-broad-generalization-20260720 --checkpoint-glob 'outputs/paper-study-20260719/dense/agents/seed-*/Best_agent*.pth' --jobs-values 20,50,100 --ddt-values 0.5,1.0,1.5 --arrival-rates 50,100,200 --test-instance-seeds 606,707,808,909,1001
+```
+
+This evaluated the 10 dense DQN checkpoints from the paper study on 135 additional held-out generated instances without retraining. All 2,565 rows completed successfully: 1,350 DQN checkpoint-instance rows and 1,215 dispatching-rule baseline rows.
+
+Overall ranking:
+
+| Rank | Method | n | Mean tardiness | Std | 95% CI |
+|---:|---|---:|---:|---:|---:|
+| 1 | SPT_DR_O | 135 | 0.320356 | 0.240501 | 0.040570 |
+| 2 | MRT_DR_O | 135 | 0.368362 | 0.239790 | 0.040450 |
+| 3 | DQN | 1350 | 0.371964 | 0.277143 | 0.014784 |
+| 4 | ATC_DR_O | 135 | 0.375809 | 0.280666 | 0.047345 |
+| 5 | LRT_DR_O | 135 | 0.391062 | 0.271928 | 0.045872 |
+| 6 | SLK_DR_O | 135 | 0.424921 | 0.304870 | 0.051428 |
+| 7 | EDD_DR_O | 135 | 0.428607 | 0.307630 | 0.051894 |
+| 8 | MCR_DR_O | 135 | 0.433106 | 0.312882 | 0.052780 |
+| 9 | LSPO_DR_O | 135 | 0.433695 | 0.308948 | 0.052116 |
+| 10 | CR_DR_O | 135 | 0.448320 | 0.305253 | 0.051493 |
+
+Key paired comparisons:
+
+| Baseline | Mean DQN-baseline difference | Wilcoxon p | Wins | Losses | Ties |
+|---|---:|---:|---:|---:|---:|
+| SPT_DR_O | +0.051608 | 0.000000 | 226 | 834 | 290 |
+| MRT_DR_O | +0.003602 | 0.019782 | 730 | 497 | 123 |
+| ATC_DR_O | -0.003845 | 0.000677 | 128 | 93 | 1129 |
+| LRT_DR_O | -0.019098 | 0.000000 | 930 | 288 | 132 |
+| CR_DR_O | -0.076356 | 0.000000 | 1191 | 13 | 146 |
+
+Per-size breakdown:
+
+| Jobs | SPT mean | ATC mean | DQN mean | Comment |
+|---:|---:|---:|---:|---|
+| 20 | 0.171043 | 0.168837 | 0.169109 | DQN is competitive with ATC and slightly better than SPT. |
+| 50 | 0.299300 | 0.339779 | 0.340441 | SPT is clearly stronger on medium instances. |
+| 100 | 0.490726 | 0.618811 | 0.606341 | DQN beats ATC but does not match SPT on larger instances. |
+
+This is a useful external validity result, not a replacement for retraining on the expanded matrix. It shows that the dense DQN checkpoints generalize well enough to beat several weaker rules and slightly improve on ATC overall, but they do not beat SPT across the broader 20/50/100-job generated matrix. The best publishable interpretation is therefore: the paper-study result is valid for its held-out matrix, and the broad checkpoint study identifies scale generalization as the main remaining research gap.
+
 ## Interpretation
 
 The expanded baseline matrix shows that `SPT_DR_O` is the strongest broad default baseline across the larger generated-instance grid. The DQN studies are now more than smoke tests: the 10-seed dense paper study shows that validation-based checkpointing and dense reward shaping can produce a DQN policy that significantly beats SPT on the held-out RL matrix.
 
-The main limitation is that the best DQN was evaluated on a relatively small held-out matrix and did not yet show a statistically significant advantage over ATC-style due-date-aware dispatching. A careful paper can claim a reproducible RL pipeline and a competitive DQN variant with statistically significant improvement over SPT on the chosen held-out matrix. A stronger paper should extend the same protocol to larger held-out matrices, add standard benchmark-derived instances where possible, and improve the RL formulation enough to challenge ATC-style policies directly.
+The main limitation is no longer just ATC; it is broader scale generalization. The best DQN result beats SPT on the original held-out RL matrix, while the wider checkpoint-only study shows that SPT remains stronger when the same checkpoints are evaluated across larger 50- and 100-job cases without retraining. A careful paper can claim a reproducible RL pipeline, a competitive dense-reward DQN variant, and statistically significant improvement over SPT on the selected held-out matrix. A stronger paper should retrain on the expanded matrix, add standard benchmark-derived instances where possible, and report ATC-style rules as a stress-test family rather than hiding them.

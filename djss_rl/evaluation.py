@@ -112,17 +112,39 @@ def evaluate_checkpoint(
 
     env = make_env(dataset_path=dataset_path)
     world = env.world
-    neurons = neurons_per_layer or DEFAULT_NEURONS_PER_LAYER
-    agent = DQNAgent(
+    agent = load_checkpoint_agent(
+        checkpoint_path=checkpoint_path,
         input_dim=env.observation_space.shape[0],
         action_size=env.action_space.n,
+        hidden_layers=hidden_layers,
+        neurons_per_layer=neurons_per_layer,
+        batch_size=batch_size,
+    )
+    return run_scheduling(env, world, name="Ours", agent=agent)
+
+
+def load_checkpoint_agent(
+    *,
+    checkpoint_path: str | Path = DEFAULT_CHECKPOINT,
+    input_dim: int,
+    action_size: int,
+    hidden_layers: int = DEFAULT_HIDDEN_LAYERS,
+    neurons_per_layer: list[int] | None = None,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+) -> DQNAgent:
+    """Load a saved DQN checkpoint once for repeated evaluations."""
+
+    neurons = neurons_per_layer or DEFAULT_NEURONS_PER_LAYER
+    agent = DQNAgent(
+        input_dim=input_dim,
+        action_size=action_size,
         hidden_layers=hidden_layers,
         neurons_per_layer=neurons,
         batch_size=batch_size,
     )
     agent.epsilon = 0
     agent.load_model(str(checkpoint_path))
-    return run_scheduling(env, world, name="Ours", agent=agent)
+    return agent
 
 
 def evaluate_all(

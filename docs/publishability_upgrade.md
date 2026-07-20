@@ -10,6 +10,8 @@ This project now has the first pieces of a publishable experiment workflow: gene
 - Added `python -m djss_rl.cli experiment`.
 - Added `python -m djss_rl.cli rl-study` for generated train/test instance studies.
 - Added `python -m djss_rl.cli paper-study` for resumable multi-variant studies.
+- Added `python -m djss_rl.cli checkpoint-study` for broad held-out evaluation of existing checkpoints.
+- Added `python -m djss_rl.cli convert-jsplib` for JSPLIB-style benchmark conversion.
 - Added optional validation splits, dense tardiness reward shaping, and tunable DQN hyperparameters.
 - Added experiment summaries with mean tardiness, standard deviation, 95% confidence intervals, and paired comparison tables.
 - Added tests for generated dataset loading, tiny experiment-grid execution, and tiny held-out RL-study execution.
@@ -59,13 +61,14 @@ Key result:
 - DQN mean held-out tardiness was `0.282789`, close to `SPT_DR_O` at `0.273815`, but not better. The paired comparison against SPT had Wilcoxon `p = 0.224728`.
 - A validation-selected dense-reward DQN study improved DQN mean held-out tardiness to `0.277797`.
 - A 4-variant paper study then trained 40 DQN checkpoints with 10 training seeds per variant. The best dense-reward variant reached mean held-out tardiness `0.267804`, significantly better than the primary `SPT_DR_O` baseline at `0.273815` (`p = 0.002808`).
+- A broad checkpoint generalization study then evaluated the dense checkpoints on 135 additional held-out generated instances. DQN ranked third overall with mean tardiness `0.371964`, slightly beating `ATC_DR_O` (`0.375809`) but not the strongest broad baseline, `SPT_DR_O` (`0.320356`).
 
 ## Next Publishable Step
 
-Use these results as the baseline for improving and reporting the RL method itself. The current evidence supports a careful paper claim that a validation-selected dense-reward DQN significantly improves over SPT on the held-out RL matrix. The next full paper-quality extension should evaluate on larger held-out matrices, benchmark-derived instances, and stronger due-date-aware stress tests such as ATC-style policies:
+Use these results as the baseline for improving and reporting the RL method itself. The current evidence supports a careful paper claim that a validation-selected dense-reward DQN significantly improves over SPT on the selected held-out RL matrix. The next full paper-quality extension should retrain on the larger generated matrix rather than only evaluating existing checkpoints:
 
 ```bash
-python3 -m djss_rl.cli experiment --output-dir outputs/publishability-baseline-large --jobs-values 20,50,100 --ddt-values 0.5,1.0,1.5 --arrival-rates 50,100,200 --seeds 101,202,303,404,505
+python3 -m djss_rl.cli paper-study --output-dir outputs/paper-study-expanded --variants dense,dense_slow_epsilon,dense_low_lr,sharp --jobs-values 20,50,100 --ddt-values 0.5,1.0,1.5 --arrival-rates 50,100,200 --train-instance-seeds 101,202,303 --validation-instance-seeds 505,606 --test-instance-seeds 707,808,909,1001,1112 --training-seeds 11,22,33,44,55,66,77,88,99,110 --episodes 1000 --validation-every 50
 ```
 
-The `paper-study` command now provides the resumable held-out evaluation path with at least 10 training seeds per configuration, validation-based model selection, and reward/hyperparameter variant comparison.
+The `paper-study` command now provides the resumable held-out evaluation path with at least 10 training seeds per configuration, validation-based model selection, and reward/hyperparameter variant comparison. The detailed next protocol is recorded in `docs/manuscript_protocol.md`.
