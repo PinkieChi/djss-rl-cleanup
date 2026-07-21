@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software or the accompanying experiment results, please cite it as below."
+title: "DQN-Based Dynamic Job Shop Scheduling: Reproducibility and Diagnostic Package"
+authors:
+  - family-names: "Ngwu"
+    given-names: "Chinyere"
+type: software
+repository-code: "https://github.com/PinkieChi/djss-rl-cleanup"
+version: "0.1.0"
+date-released: "2026-07-21"
+keywords:
+  - "dynamic job shop scheduling"
+  - "reinforcement learning"
+  - "DQN"
+  - "dispatching rules"
+  - "reproducibility"
+abstract: "A cleaned and reproducible DQN-based dynamic job shop scheduling package with generated-instance experiments, validation-selected checkpoints, broad generalization checks, and policy-trace diagnostics against dispatching-rule baselines."

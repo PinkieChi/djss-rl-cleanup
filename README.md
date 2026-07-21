@@ -15,6 +15,9 @@ This project explores dynamic job shop scheduling with a Dueling Double-DQN-styl
 - `docs/evaluation_results.md` - latest safe evaluation results on the restored dataset.
 - `docs/publishability_results.md` - generated-instance baseline and held-out DQN study results.
 - `docs/manuscript_protocol.md` - next publication-grade experiment protocol and commands.
+- `docs/publication_statement.md` - recommended publication claim, boundaries, and abstract.
+- `docs/reproducibility_report.md` - manuscript-style artifact report and key results.
+- `CITATION.cff` - citation metadata for software/artifact publication.
 
 ## Setup
 
@@ -119,3 +122,7 @@ python -m unittest discover -s tests -v
 - A short expanded-matrix dense retraining pilot completed successfully, but 100 episodes and 1 seed were not enough to beat `SPT_DR_O`.
 - Policy tracing showed the expanded-pilot DQN selected `ATC_DR_O` for all 12,314 held-out dispatching decisions, so the exact ATC match is a learned single-rule policy rather than a distinct RL improvement.
 - Publication-strength claims should be framed around a reproducible validation-selected DQN pipeline with significant improvement over SPT on the selected held-out matrix. Stronger claims need expanded-matrix retraining and benchmark-derived instances.
+
+## Publication Status
+
+This repository is ready to publish as a code and reproducibility artifact. Use the framing in `docs/publication_statement.md`: the project supports a cautious reproducibility and diagnostic claim, not a broad claim that DQN is superior to dispatching rules.
