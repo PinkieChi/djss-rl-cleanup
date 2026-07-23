@@ -18,6 +18,9 @@ This project explores dynamic job shop scheduling with a Dueling Double-DQN-styl
 - `docs/manuscript_protocol.md` - next publication-grade experiment protocol and commands.
 - `docs/publication_statement.md` - recommended publication claim, boundaries, and abstract.
 - `docs/reproducibility_report.md` - manuscript-style artifact report and key results.
+- `paper/ieee-overleaf/` - complete IEEE-style LaTeX manuscript, bibliography, figures, and figure-generation script.
+- `output/djss_dqn_ieee_overleaf.zip` - self-contained manuscript package for direct import into Overleaf.
+- `output/pdf/djss_dqn_ieee_paper.pdf` - compiled six-page manuscript preview.
 - `CITATION.cff` - citation metadata for software/artifact publication.
 
 ## Setup
