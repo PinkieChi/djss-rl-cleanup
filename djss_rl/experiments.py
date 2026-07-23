@@ -157,6 +157,55 @@ def _error_row(instance: ExperimentInstance, *, method: str, error: Exception) -
     }
 
 
+def _result_to_dataset_row(dataset_path: Path, result: SchedulingResult, env) -> dict[str, str]:
+    world = env.world
+    work_centers = getattr(world, "work_centers", [])
+    machines_per_work_center = max((len(work_center.machines) for work_center in work_centers), default=0)
+    return {
+        "instance_id": dataset_path.stem,
+        "dataset_path": str(dataset_path),
+        "seed": "",
+        "jobs": str(len(world.jobs)),
+        "machines": str(len(world.machines)),
+        "work_centers": str(len(work_centers)),
+        "machines_per_work_center": str(machines_per_work_center),
+        "ddt": str(getattr(world, "DDT", "")),
+        "arrival_rate": str(getattr(world, "_lambda", "")),
+        "method": result.name,
+        "tardiness_rate": repr(result.tardiness_rate),
+        "makespan": repr(result.makespan),
+        "mean_machine_utilization": repr(result.mean_machine_utilization),
+        "corrective_maintenance_actions": repr(result.corrective_maintenance_actions),
+        "preventive_maintenance_actions": repr(result.preventive_maintenance_actions),
+        "energy_consumption": repr(result.energy_consumption),
+        "status": "ok",
+        "error": "",
+    }
+
+
+def _dataset_error_row(dataset_path: Path, *, method: str, error: Exception) -> dict[str, str]:
+    return {
+        "instance_id": dataset_path.stem,
+        "dataset_path": str(dataset_path),
+        "seed": "",
+        "jobs": "",
+        "machines": "",
+        "work_centers": "",
+        "machines_per_work_center": "",
+        "ddt": "",
+        "arrival_rate": "",
+        "method": method,
+        "tardiness_rate": "nan",
+        "makespan": "nan",
+        "mean_machine_utilization": "nan",
+        "corrective_maintenance_actions": "nan",
+        "preventive_maintenance_actions": "nan",
+        "energy_consumption": "nan",
+        "status": "error",
+        "error": str(error),
+    }
+
+
 def build_instances(
     *,
     output_dir: str | Path,
@@ -592,6 +641,106 @@ def run_checkpoint_generalization_study(
     return csv_path, summary_path
 
 
+def run_benchmark_dataset_study(
+    *,
+    output_dir: str | Path,
+    dataset_paths: list[str | Path],
+    checkpoint_paths: list[str | Path] | None = None,
+    checkpoint_labels: list[str] | None = None,
+) -> tuple[Path, Path]:
+    """Evaluate baselines and optional DQN checkpoints on provided benchmark-derived datasets."""
+
+    datasets = [Path(path) for path in dataset_paths]
+    if not datasets:
+        raise ValueError("dataset_paths must contain at least one dataset")
+    for dataset in datasets:
+        if not dataset.exists():
+            raise FileNotFoundError(dataset)
+
+    checkpoints = [Path(path) for path in checkpoint_paths or []]
+    for checkpoint in checkpoints:
+        if not checkpoint.exists():
+            raise FileNotFoundError(checkpoint)
+    if checkpoint_labels is not None and len(checkpoint_labels) != len(checkpoints):
+        raise ValueError("checkpoint_labels must match checkpoint_paths length")
+    labels = checkpoint_labels or [_checkpoint_label(path) for path in checkpoints]
+
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    _write_json(
+        output_path / "benchmark_study_config.json",
+        {
+            "study_type": "benchmark_dataset_study",
+            "dataset_paths": [str(path) for path in datasets],
+            "checkpoint_paths": [str(path) for path in checkpoints],
+            "checkpoint_labels": labels,
+        },
+    )
+
+    csv_path = output_path / "benchmark_results.csv"
+    rows: list[dict[str, str]] = _read_rows(csv_path)
+    completed = {_experiment_row_key(row) for row in rows}
+
+    for dataset in datasets:
+        for index, heuristic in enumerate(HEURISTICS):
+            row_key = ("test", dataset.stem, heuristic, "")
+            if row_key in completed:
+                continue
+            try:
+                env = make_env(dataset_path=dataset)
+                result = run_scheduling(env, env.world, name=heuristic, decision_rule=index)
+                row = _result_to_dataset_row(dataset, result, env)
+            except Exception as exc:  # noqa: BLE001 - experiment rows should capture failures.
+                row = _dataset_error_row(dataset, method=heuristic, error=exc)
+            row["split"] = "test"
+            row["training_seed"] = ""
+            row["checkpoint_path"] = ""
+            rows.append(row)
+            completed.add(row_key)
+            _write_rows(csv_path, rows)
+
+    if checkpoints:
+        sample_env = make_env(dataset_path=datasets[0])
+        for checkpoint, label in zip(checkpoints, labels):
+            agent = load_checkpoint_agent(
+                checkpoint_path=checkpoint,
+                input_dim=sample_env.observation_space.shape[0],
+                action_size=sample_env.action_space.n,
+            )
+            for dataset in datasets:
+                row_key = ("test", dataset.stem, "DQN", label)
+                if row_key in completed:
+                    continue
+                try:
+                    env = make_env(dataset_path=dataset)
+                    result = run_scheduling(env, env.world, name="Ours", agent=agent)
+                    row = _result_to_dataset_row(dataset, result, env)
+                except Exception as exc:  # noqa: BLE001 - experiment rows should capture failures.
+                    row = _dataset_error_row(dataset, method="DQN", error=exc)
+                row["method"] = "DQN"
+                row["split"] = "test"
+                row["training_seed"] = label
+                row["checkpoint_path"] = str(checkpoint)
+                rows.append(row)
+                completed.add(row_key)
+                _write_rows(csv_path, rows)
+
+    training_rows = [
+        {
+            "training_seed": label,
+            "episodes": "pretrained",
+            "best_training_score": "",
+            "best_validation_tardiness": "",
+            "checkpoint_selection_metric": "pretrained_checkpoint",
+            "checkpoint_path": str(checkpoint),
+        }
+        for checkpoint, label in zip(checkpoints, labels)
+    ]
+    summary_path = output_path / "benchmark_summary.md"
+    summary_path.write_text(make_benchmark_dataset_summary(rows, training_rows), encoding="utf-8")
+    return csv_path, summary_path
+
+
 def _policy_trace_row(
     *,
     dataset_path: Path,
@@ -784,6 +933,84 @@ def run_policy_trace_study(
 
     summary_path = output_path / "policy_trace_summary.md"
     summary_path.write_text(make_policy_trace_summary(rows, checkpoint_path=checkpoint), encoding="utf-8")
+    return csv_path, summary_path
+
+
+def run_checkpoint_policy_trace_study(
+    *,
+    output_dir: str | Path,
+    checkpoint_paths: list[str | Path],
+    dataset_paths: list[str | Path],
+    checkpoint_labels: list[str] | None = None,
+) -> tuple[Path, Path]:
+    """Trace action distributions for multiple checkpoints on the same datasets."""
+
+    checkpoints = [Path(path) for path in checkpoint_paths]
+    if not checkpoints:
+        raise ValueError("checkpoint_paths must contain at least one checkpoint")
+    for checkpoint in checkpoints:
+        if not checkpoint.exists():
+            raise FileNotFoundError(checkpoint)
+    if checkpoint_labels is not None and len(checkpoint_labels) != len(checkpoints):
+        raise ValueError("checkpoint_labels must match checkpoint_paths length")
+    labels = checkpoint_labels or [_checkpoint_label(path) for path in checkpoints]
+
+    datasets = [Path(path) for path in dataset_paths]
+    if not datasets:
+        raise ValueError("dataset_paths must contain at least one dataset")
+    for dataset in datasets:
+        if not dataset.exists():
+            raise FileNotFoundError(dataset)
+
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    _write_json(
+        output_path / "checkpoint_policy_trace_config.json",
+        {
+            "study_type": "checkpoint_policy_trace",
+            "checkpoint_paths": [str(path) for path in checkpoints],
+            "checkpoint_labels": labels,
+            "dataset_paths": [str(path) for path in datasets],
+        },
+    )
+
+    csv_path = output_path / "checkpoint_policy_trace.csv"
+    rows: list[dict[str, str]] = _read_rows(csv_path)
+    completed = {(row["instance_id"], row["checkpoint_label"]) for row in rows}
+    sample_env = make_env(dataset_path=datasets[0])
+
+    for checkpoint, label in zip(checkpoints, labels):
+        agent = load_checkpoint_agent(
+            checkpoint_path=checkpoint,
+            input_dim=sample_env.observation_space.shape[0],
+            action_size=sample_env.action_space.n,
+        )
+        for dataset_path in datasets:
+            row_key = (dataset_path.stem, label)
+            if row_key in completed:
+                continue
+            try:
+                env = make_env(dataset_path=dataset_path)
+                trace = trace_scheduling_actions(env, env.world, name=label, agent=agent)
+                row = _policy_trace_row(
+                    dataset_path=dataset_path,
+                    checkpoint_path=checkpoint,
+                    checkpoint_label=label,
+                    trace=trace,
+                )
+            except Exception as exc:  # noqa: BLE001 - diagnostics should capture failures.
+                row = _policy_trace_error_row(
+                    dataset_path=dataset_path,
+                    checkpoint_path=checkpoint,
+                    checkpoint_label=label,
+                    error=exc,
+                )
+            rows.append(row)
+            completed.add(row_key)
+            _write_rows(csv_path, rows)
+
+    summary_path = output_path / "checkpoint_policy_trace_summary.md"
+    summary_path.write_text(make_checkpoint_policy_trace_summary(rows), encoding="utf-8")
     return csv_path, summary_path
 
 
@@ -1224,6 +1451,116 @@ def make_paper_study_summary(rows: list[dict[str, str]]) -> str:
     )
     for row in sorted(rows, key=lambda item: item["variant"]):
         lines.append(f"| {row['variant']} | {row['results_csv']} | {row['summary_markdown']} |")
+    return "\n".join(lines) + "\n"
+
+
+def make_benchmark_dataset_summary(rows: list[dict[str, str]], training_rows: list[dict[str, str]]) -> str:
+    source_datasets = sorted({row["dataset_path"] for row in rows})
+    lines = [
+        "# Benchmark-Derived Dataset Study Summary",
+        "",
+        "These rows evaluate converted benchmark-style `.ini` datasets with the full dispatching-rule baseline suite.",
+        f"Benchmark-derived datasets: {len(source_datasets)}",
+        "",
+        "## Dataset Sources",
+        "",
+        "| Dataset |",
+        "|---|",
+    ]
+    for dataset_path in source_datasets:
+        lines.append(f"| {dataset_path} |")
+
+    rl_summary = make_rl_markdown_summary(rows, training_rows)
+    lines.extend(["", rl_summary.replace("# RL Generalization Study Summary", "## Result Summary", 1).rstrip(), ""])
+    return "\n".join(lines)
+
+
+def make_checkpoint_policy_trace_summary(rows: list[dict[str, str]]) -> str:
+    """Create a Markdown summary for multi-checkpoint action diagnostics."""
+
+    ok_rows = [row for row in rows if row.get("status", "ok") == "ok"]
+    error_rows = [row for row in rows if row.get("status") == "error"]
+    labels = sorted({row["checkpoint_label"] for row in rows}, key=_label_sort_key)
+    lines = [
+        "# Checkpoint Policy Trace Summary",
+        "",
+        f"Checkpoints traced: {len(labels)}",
+        f"Successful trace rows: {len(ok_rows)}",
+        f"Failed trace rows: {len(error_rows)}",
+        "",
+        "## Checkpoint Overview",
+        "",
+        "| Checkpoint label | Instances | Decisions | Mean tardiness | Dominant action | Dominant fraction |",
+        "|---|---:|---:|---:|---|---:|",
+    ]
+
+    for label in labels:
+        label_rows = [row for row in ok_rows if row["checkpoint_label"] == label]
+        total_decisions = sum(int(row["decisions"]) for row in label_rows)
+        action_counts = {
+            heuristic: sum(int(row[f"count_{heuristic}"]) for row in label_rows)
+            for heuristic in HEURISTICS
+        }
+        dominant_action, dominant_count = max(action_counts.items(), key=lambda item: item[1], default=("", 0))
+        tardiness_values = [float(row["tardiness_rate"]) for row in label_rows]
+        lines.append(
+            "| {} | {} | {} | {} | {} | {} |".format(
+                label,
+                len(label_rows),
+                total_decisions,
+                _format_float(_mean(tardiness_values)),
+                dominant_action,
+                _format_float(dominant_count / total_decisions if total_decisions else 0.0),
+            )
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Action Fractions",
+            "",
+            "| Checkpoint label | Decisions | "
+            + " | ".join(HEURISTICS)
+            + " |",
+            "|---|---:"
+            + "".join("|---:" for _ in HEURISTICS)
+            + "|",
+        ]
+    )
+    for label in labels:
+        label_rows = [row for row in ok_rows if row["checkpoint_label"] == label]
+        total_decisions = sum(int(row["decisions"]) for row in label_rows)
+        fractions = []
+        for heuristic in HEURISTICS:
+            count = sum(int(row[f"count_{heuristic}"]) for row in label_rows)
+            fractions.append(_format_float(count / total_decisions if total_decisions else 0.0))
+        lines.append(f"| {label} | {total_decisions} | " + " | ".join(fractions) + " |")
+
+    lines.extend(
+        [
+            "",
+            "## Instance Details",
+            "",
+            "| Checkpoint label | Instance | Decisions | Dominant action | Dominant fraction | Tardiness |",
+            "|---|---|---:|---|---:|---:|",
+        ]
+    )
+    for row in ok_rows:
+        lines.append(
+            "| {} | {} | {} | {} | {} | {} |".format(
+                row["checkpoint_label"],
+                row["instance_id"],
+                row["decisions"],
+                row["dominant_action"],
+                _format_float(float(row["dominant_fraction"])),
+                _format_float(float(row["tardiness_rate"])),
+            )
+        )
+
+    if error_rows:
+        lines.extend(["", "## Errors", "", "| Checkpoint label | Instance | Error |", "|---|---|---|"])
+        for row in error_rows:
+            lines.append(f"| {row['checkpoint_label']} | {row['instance_id']} | {row['error']} |")
     return "\n".join(lines) + "\n"
 
 

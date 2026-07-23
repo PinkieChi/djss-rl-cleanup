@@ -12,7 +12,9 @@ from .evaluation import DEFAULT_CHECKPOINT, evaluate_all
 from .experiments import (
     PAPER_STUDY_VARIANTS,
     run_baseline_grid,
+    run_benchmark_dataset_study,
     run_checkpoint_generalization_study,
+    run_checkpoint_policy_trace_study,
     run_paper_study,
     run_policy_trace_study,
     run_rl_generalization_study,
@@ -211,6 +213,19 @@ def main() -> None:
     checkpoint_parser.add_argument("--min-processing-time", type=int, default=60)
     checkpoint_parser.add_argument("--max-processing-time", type=int, default=120)
 
+    benchmark_parser = subparsers.add_parser(
+        "benchmark-study",
+        help="Evaluate converted benchmark-derived .ini datasets with baselines and optional checkpoints.",
+    )
+    benchmark_parser.add_argument("--output-dir", default="outputs/benchmark-study")
+    benchmark_parser.add_argument("--dataset-glob", required=True, help="Glob of converted benchmark .ini datasets.")
+    benchmark_parser.add_argument(
+        "--checkpoint-glob",
+        default="",
+        help="Optional glob for DQN checkpoints, relative to project-dir unless absolute.",
+    )
+    benchmark_parser.add_argument("--checkpoint-labels", default="", help="Optional comma-separated labels matching the glob order.")
+
     trace_parser = subparsers.add_parser(
         "trace-policy",
         help="Trace which dispatching-rule actions a saved DQN checkpoint selects.",
@@ -219,6 +234,15 @@ def main() -> None:
     trace_parser.add_argument("--checkpoint", default=DEFAULT_CHECKPOINT, help="Saved PyTorch checkpoint path.")
     trace_parser.add_argument("--dataset-glob", required=True, help="Glob of .ini datasets to trace.")
     trace_parser.add_argument("--checkpoint-label", default="DQN")
+
+    trace_checkpoints_parser = subparsers.add_parser(
+        "trace-checkpoints",
+        help="Trace action distributions for multiple DQN checkpoints over the same datasets.",
+    )
+    trace_checkpoints_parser.add_argument("--output-dir", default="outputs/checkpoint-policy-trace")
+    trace_checkpoints_parser.add_argument("--checkpoint-glob", required=True, help="Glob for DQN checkpoints.")
+    trace_checkpoints_parser.add_argument("--dataset-glob", required=True, help="Glob of .ini datasets to trace.")
+    trace_checkpoints_parser.add_argument("--checkpoint-labels", default="", help="Optional comma-separated labels matching the glob order.")
 
     args = parser.parse_args()
     project_dir = Path(args.project_dir)
@@ -377,6 +401,21 @@ def main() -> None:
         print("checkpoints", len(checkpoint_paths))
         print("results_csv", csv_path)
         print("summary_markdown", summary_path)
+    elif args.command == "benchmark-study":
+        dataset_paths = _resolve_glob(project_dir, args.dataset_glob)
+        checkpoint_paths = _resolve_glob(project_dir, args.checkpoint_glob) if args.checkpoint_glob else []
+        labels = _parse_str_list(args.checkpoint_labels) or None
+        csv_path, summary_path = run_benchmark_dataset_study(
+            output_dir=project_dir / args.output_dir,
+            dataset_paths=dataset_paths,
+            checkpoint_paths=checkpoint_paths,
+            checkpoint_labels=labels,
+        )
+        print("\nBENCHMARK_STUDY_RUN_OK")
+        print("datasets", len(dataset_paths))
+        print("checkpoints", len(checkpoint_paths))
+        print("results_csv", csv_path)
+        print("summary_markdown", summary_path)
     elif args.command == "trace-policy":
         dataset_paths = _resolve_glob(project_dir, args.dataset_glob)
         csv_path, summary_path = run_policy_trace_study(
@@ -386,6 +425,21 @@ def main() -> None:
             checkpoint_label=args.checkpoint_label,
         )
         print("\nPOLICY_TRACE_RUN_OK")
+        print("datasets", len(dataset_paths))
+        print("results_csv", csv_path)
+        print("summary_markdown", summary_path)
+    elif args.command == "trace-checkpoints":
+        checkpoint_paths = _resolve_glob(project_dir, args.checkpoint_glob)
+        dataset_paths = _resolve_glob(project_dir, args.dataset_glob)
+        labels = _parse_str_list(args.checkpoint_labels) or None
+        csv_path, summary_path = run_checkpoint_policy_trace_study(
+            output_dir=project_dir / args.output_dir,
+            checkpoint_paths=checkpoint_paths,
+            dataset_paths=dataset_paths,
+            checkpoint_labels=labels,
+        )
+        print("\nCHECKPOINT_POLICY_TRACE_RUN_OK")
+        print("checkpoints", len(checkpoint_paths))
         print("datasets", len(dataset_paths))
         print("results_csv", csv_path)
         print("summary_markdown", summary_path)

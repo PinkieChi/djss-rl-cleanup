@@ -1,0 +1,53 @@
+{
+  "arrival_rates": [
+    50,
+    100,
+    200
+  ],
+  "ddt_values": [
+    0.5,
+    1.0,
+    1.5
+  ],
+  "episodes": 500,
+  "epsilon_decay": 0.995,
+  "epsilon_min": 0.01,
+  "gamma": 0.99,
+  "initial_job_fraction": 0.5,
+  "jobs_values": [
+    20,
+    50,
+    100
+  ],
+  "learning_rate": 0.001,
+  "machines_per_work_center": 3,
+  "max_compatible_machines": null,
+  "max_operations": 10,
+  "max_processing_time": 120,
+  "min_compatible_machines": 1,
+  "min_operations": 6,
+  "min_processing_time": 60,
+  "reward_mode": "dense_tardiness",
+  "study_type": "rl_generalization",
+  "test_instance_seeds": [
+    707,
+    808,
+    909
+  ],
+  "train_instance_seeds": [
+    101,
+    202
+  ],
+  "train_start": 500,
+  "training_seeds": [
+    11,
+    22,
+    33
+  ],
+  "validation_every": 50,
+  "validation_instance_seeds": [
+    505,
+    606
+  ],
+  "work_centers": 5
+}

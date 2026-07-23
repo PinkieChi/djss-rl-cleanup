@@ -1,0 +1,2 @@
+variant,episodes,training_runs,test_rows,ok_rows,error_rows,dqn_mean_tardiness,spt_mean_tardiness,atc_mean_tardiness,dqn_minus_spt,dqn_vs_spt_p,dqn_vs_spt_wins,dqn_vs_spt_losses,dqn_vs_spt_ties,dqn_minus_atc,dqn_vs_atc_p,results_csv,summary_markdown
+dense,500,3,972,1620,0,0.340194,0.323933,0.378592,0.016260,0.000000,9,61,173,-0.038398,0.000000,outputs/expanded-dense-multiseed-20260721/dense/rl_results.csv,outputs/expanded-dense-multiseed-20260721/dense/rl_summary.md

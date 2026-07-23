@@ -1,0 +1,563 @@
+{
+  "source_url": "https://people.brunel.ac.uk/~mastjjb/jeb/orlib/files/jobshop1.txt",
+  "source_file": "benchmarks/or-library/raw/jobshop1.txt",
+  "instances": [
+    "ft06",
+    "ft10",
+    "ft20",
+    "la01",
+    "la06",
+    "la21",
+    "la31",
+    "orb01",
+    "orb02",
+    "abz5",
+    "abz7",
+    "swv01",
+    "swv06",
+    "yn1",
+    "yn2"
+  ],
+  "converted_datasets": [
+    {
+      "instance": "ft06",
+      "source_path": "benchmarks/or-library/instances/ft06.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/ft06_ddt0.5_arr50_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "ft06",
+      "source_path": "benchmarks/or-library/instances/ft06.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/ft06_ddt0.5_arr100_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "ft06",
+      "source_path": "benchmarks/or-library/instances/ft06.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/ft06_ddt1_arr50_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "ft06",
+      "source_path": "benchmarks/or-library/instances/ft06.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/ft06_ddt1_arr100_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "ft10",
+      "source_path": "benchmarks/or-library/instances/ft10.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/ft10_ddt0.5_arr50_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "ft10",
+      "source_path": "benchmarks/or-library/instances/ft10.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/ft10_ddt0.5_arr100_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "ft10",
+      "source_path": "benchmarks/or-library/instances/ft10.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/ft10_ddt1_arr50_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "ft10",
+      "source_path": "benchmarks/or-library/instances/ft10.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/ft10_ddt1_arr100_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "ft20",
+      "source_path": "benchmarks/or-library/instances/ft20.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/ft20_ddt0.5_arr50_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "ft20",
+      "source_path": "benchmarks/or-library/instances/ft20.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/ft20_ddt0.5_arr100_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "ft20",
+      "source_path": "benchmarks/or-library/instances/ft20.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/ft20_ddt1_arr50_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "ft20",
+      "source_path": "benchmarks/or-library/instances/ft20.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/ft20_ddt1_arr100_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "la01",
+      "source_path": "benchmarks/or-library/instances/la01.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/la01_ddt0.5_arr50_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "la01",
+      "source_path": "benchmarks/or-library/instances/la01.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/la01_ddt0.5_arr100_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "la01",
+      "source_path": "benchmarks/or-library/instances/la01.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/la01_ddt1_arr50_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "la01",
+      "source_path": "benchmarks/or-library/instances/la01.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/la01_ddt1_arr100_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "la06",
+      "source_path": "benchmarks/or-library/instances/la06.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/la06_ddt0.5_arr50_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "la06",
+      "source_path": "benchmarks/or-library/instances/la06.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/la06_ddt0.5_arr100_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "la06",
+      "source_path": "benchmarks/or-library/instances/la06.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/la06_ddt1_arr50_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "la06",
+      "source_path": "benchmarks/or-library/instances/la06.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/la06_ddt1_arr100_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "la21",
+      "source_path": "benchmarks/or-library/instances/la21.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/la21_ddt0.5_arr50_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "la21",
+      "source_path": "benchmarks/or-library/instances/la21.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/la21_ddt0.5_arr100_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "la21",
+      "source_path": "benchmarks/or-library/instances/la21.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/la21_ddt1_arr50_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "la21",
+      "source_path": "benchmarks/or-library/instances/la21.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/la21_ddt1_arr100_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "la31",
+      "source_path": "benchmarks/or-library/instances/la31.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/la31_ddt0.5_arr50_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "la31",
+      "source_path": "benchmarks/or-library/instances/la31.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/la31_ddt0.5_arr100_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "la31",
+      "source_path": "benchmarks/or-library/instances/la31.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/la31_ddt1_arr50_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "la31",
+      "source_path": "benchmarks/or-library/instances/la31.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/la31_ddt1_arr100_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "orb01",
+      "source_path": "benchmarks/or-library/instances/orb01.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/orb01_ddt0.5_arr50_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "orb01",
+      "source_path": "benchmarks/or-library/instances/orb01.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/orb01_ddt0.5_arr100_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "orb01",
+      "source_path": "benchmarks/or-library/instances/orb01.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/orb01_ddt1_arr50_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "orb01",
+      "source_path": "benchmarks/or-library/instances/orb01.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/orb01_ddt1_arr100_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "orb02",
+      "source_path": "benchmarks/or-library/instances/orb02.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/orb02_ddt0.5_arr50_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "orb02",
+      "source_path": "benchmarks/or-library/instances/orb02.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/orb02_ddt0.5_arr100_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "orb02",
+      "source_path": "benchmarks/or-library/instances/orb02.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/orb02_ddt1_arr50_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "orb02",
+      "source_path": "benchmarks/or-library/instances/orb02.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/orb02_ddt1_arr100_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "abz5",
+      "source_path": "benchmarks/or-library/instances/abz5.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/abz5_ddt0.5_arr50_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "abz5",
+      "source_path": "benchmarks/or-library/instances/abz5.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/abz5_ddt0.5_arr100_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "abz5",
+      "source_path": "benchmarks/or-library/instances/abz5.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/abz5_ddt1_arr50_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "abz5",
+      "source_path": "benchmarks/or-library/instances/abz5.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/abz5_ddt1_arr100_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "abz7",
+      "source_path": "benchmarks/or-library/instances/abz7.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/abz7_ddt0.5_arr50_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "abz7",
+      "source_path": "benchmarks/or-library/instances/abz7.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/abz7_ddt0.5_arr100_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "abz7",
+      "source_path": "benchmarks/or-library/instances/abz7.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/abz7_ddt1_arr50_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "abz7",
+      "source_path": "benchmarks/or-library/instances/abz7.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/abz7_ddt1_arr100_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "swv01",
+      "source_path": "benchmarks/or-library/instances/swv01.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/swv01_ddt0.5_arr50_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "swv01",
+      "source_path": "benchmarks/or-library/instances/swv01.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/swv01_ddt0.5_arr100_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "swv01",
+      "source_path": "benchmarks/or-library/instances/swv01.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/swv01_ddt1_arr50_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "swv01",
+      "source_path": "benchmarks/or-library/instances/swv01.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/swv01_ddt1_arr100_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "swv06",
+      "source_path": "benchmarks/or-library/instances/swv06.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/swv06_ddt0.5_arr50_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "swv06",
+      "source_path": "benchmarks/or-library/instances/swv06.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/swv06_ddt0.5_arr100_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "swv06",
+      "source_path": "benchmarks/or-library/instances/swv06.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/swv06_ddt1_arr50_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "swv06",
+      "source_path": "benchmarks/or-library/instances/swv06.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/swv06_ddt1_arr100_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "yn1",
+      "source_path": "benchmarks/or-library/instances/yn1.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/yn1_ddt0.5_arr50_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "yn1",
+      "source_path": "benchmarks/or-library/instances/yn1.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/yn1_ddt0.5_arr100_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "yn1",
+      "source_path": "benchmarks/or-library/instances/yn1.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/yn1_ddt1_arr50_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "yn1",
+      "source_path": "benchmarks/or-library/instances/yn1.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/yn1_ddt1_arr100_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "yn2",
+      "source_path": "benchmarks/or-library/instances/yn2.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/yn2_ddt0.5_arr50_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "yn2",
+      "source_path": "benchmarks/or-library/instances/yn2.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/yn2_ddt0.5_arr100_seed101.ini",
+      "ddt": 0.5,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "yn2",
+      "source_path": "benchmarks/or-library/instances/yn2.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/yn2_ddt1_arr50_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 50,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    },
+    {
+      "instance": "yn2",
+      "source_path": "benchmarks/or-library/instances/yn2.txt",
+      "converted_path": "outputs/or-library-benchmark-derived-20260721/datasets/yn2_ddt1_arr100_seed101.ini",
+      "ddt": 1.0,
+      "arrival_rate": 100,
+      "seed": 101,
+      "initial_job_fraction": 0.5
+    }
+  ]
+}

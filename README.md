@@ -14,6 +14,7 @@ This project explores dynamic job shop scheduling with a Dueling Double-DQN-styl
 - `docs/project_review.md` - summary of the project and recommended next improvements.
 - `docs/evaluation_results.md` - latest safe evaluation results on the restored dataset.
 - `docs/publishability_results.md` - generated-instance baseline and held-out DQN study results.
+- `docs/journal_readiness_results_20260723.md` - latest expanded-matrix, benchmark-derived, and policy-trace results.
 - `docs/manuscript_protocol.md` - next publication-grade experiment protocol and commands.
 - `docs/publication_statement.md` - recommended publication claim, boundaries, and abstract.
 - `docs/reproducibility_report.md` - manuscript-style artifact report and key results.
@@ -99,6 +100,24 @@ Trace which dispatching-rule actions a saved DQN checkpoint selects:
 python -m djss_rl.cli trace-policy --checkpoint 'outputs/expanded-dense-pilot-20260720/dense/agents/seed-66/Best_agent_hidden_layers_7neurons_per_layer_[207, 145, 78, 79, 205, 105, 217]_batch_size_32.pth' --dataset-glob 'outputs/expanded-dense-pilot-20260720/dense/test/datasets/*.ini'
 ```
 
+Prepare OR-Library benchmark-derived dynamic datasets:
+
+```bash
+python scripts/prepare_or_library_benchmarks.py --source benchmarks/or-library/raw/jobshop1.txt --output-dir outputs/or-library-benchmark-derived-20260721/datasets
+```
+
+Evaluate baselines and trained checkpoints on benchmark-derived datasets:
+
+```bash
+python -m djss_rl.cli benchmark-study --output-dir outputs/or-library-benchmark-study-20260723-clean --dataset-glob 'outputs/or-library-benchmark-derived-20260721/datasets/*.ini' --checkpoint-glob 'outputs/expanded-dense-multiseed-20260721/dense/agents/seed-*/Best_agent*.pth'
+```
+
+Trace multiple trained checkpoints:
+
+```bash
+python -m djss_rl.cli trace-checkpoints --output-dir outputs/or-library-benchmark-study-20260723-clean/policy-trace --checkpoint-glob 'outputs/expanded-dense-multiseed-20260721/dense/agents/seed-*/Best_agent*.pth' --dataset-glob 'outputs/or-library-benchmark-derived-20260721/datasets/*.ini'
+```
+
 Run one training episode from the restored dataset:
 
 ```bash
@@ -117,12 +136,11 @@ python -m unittest discover -s tests -v
 - The project now exposes environment, agent, training, and evaluation code through the `djss_rl` package. The notebook remains as the research narrative and compatibility reference.
 - The saved checkpoint evaluated successfully, but it did not beat the strongest simple dispatching baseline on the restored dataset.
 - The larger generated-instance baseline matrix found `SPT_DR_O` to be the strongest broad baseline in this implementation.
-- Held-out DQN studies run successfully. The 10-seed dense paper-study variant significantly outperformed the primary `SPT_DR_O` baseline on the held-out RL matrix.
-- The broad checkpoint study evaluated the dense checkpoints on 135 additional held-out instances. DQN beat several weaker rules and slightly beat `ATC_DR_O`, but `SPT_DR_O` remained strongest overall.
-- A short expanded-matrix dense retraining pilot completed successfully, but 100 episodes and 1 seed were not enough to beat `SPT_DR_O`.
-- Policy tracing showed the expanded-pilot DQN selected `ATC_DR_O` for all 12,314 held-out dispatching decisions, so the exact ATC match is a learned single-rule policy rather than a distinct RL improvement.
-- Publication-strength claims should be framed around a reproducible validation-selected DQN pipeline with significant improvement over SPT on the selected held-out matrix. Stronger claims need expanded-matrix retraining and benchmark-derived instances.
+- Expanded-matrix dense retraining with 3 seeds and 500 episodes completed successfully, but DQN ranked second behind `SPT_DR_O` on held-out generated instances.
+- OR-Library-derived benchmark evaluation completed on 60 converted dynamic datasets. DQN again ranked second behind `SPT_DR_O` and slightly ahead of `ATC_DR_O`; see `docs/journal_readiness_results_20260723.md`.
+- Policy tracing showed the expanded DQN checkpoints collapsed to single-rule behavior: seeds 11 and 22 selected `SPT_DR_O` for every decision, while seed 33 selected `MRT_DR_O` for every decision.
+- Publication-strength claims should be framed around reproducibility, transparent diagnostics, and motivation for stronger adaptive RL designs such as RA-PPO, not broad DQN superiority.
 
 ## Publication Status
 
-This repository is ready to publish as a code and reproducibility artifact. Use the framing in `docs/publication_statement.md`: the project supports a cautious reproducibility and diagnostic claim, not a broad claim that DQN is superior to dispatching rules.
+This repository is ready to publish as a code and reproducibility artifact. Use the framing in `docs/publication_statement.md` and `docs/journal_readiness_results_20260723.md`: the project supports a cautious reproducibility and diagnostic claim, not a broad claim that DQN is superior to dispatching rules.

@@ -1,6 +1,6 @@
 # Publishability Experiment Results
 
-This document records the larger generated-instance experiments run on July 18-20, 2026. The raw CSV, logs, generated datasets, and trained checkpoints are stored under `outputs/` locally and are packaged separately for backup.
+This document records the larger generated-instance experiments run on July 18-20, 2026. The July 23, 2026 expanded retraining and benchmark-derived results supersede the publication conclusion here; see `docs/journal_readiness_results_20260723.md` for the current journal-readiness assessment. The raw CSV, logs, generated datasets, and trained checkpoints are stored under `outputs/` locally and are packaged separately for backup.
 
 ## Large Baseline Matrix
 

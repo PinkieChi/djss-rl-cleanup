@@ -7,7 +7,9 @@ from djss_rl.environment import make_env
 from djss_rl.evaluation import evaluate_checkpoint, run_scheduling
 from djss_rl.experiments import (
     run_baseline_grid,
+    run_benchmark_dataset_study,
     run_checkpoint_generalization_study,
+    run_checkpoint_policy_trace_study,
     run_paper_study,
     run_policy_trace_study,
     run_rl_generalization_study,
@@ -122,6 +124,50 @@ class ExperimentInfrastructureTest(unittest.TestCase):
         self.assertEqual(len(env.world.jobs), 2)
         self.assertEqual(len(env.world.machines), 2)
         self.assertEqual(env.world.operations, 4)
+
+    def test_observation_handles_empty_ready_machine_buffer(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source_path = Path(tmpdir) / "tiny_jsplib.txt"
+            source_path.write_text(
+                "instance tiny\n# jobs machines\n2 2\n1 3 0 2\n1 2 0 4\n",
+                encoding="utf-8",
+            )
+            output_path = Path(tmpdir) / "tiny_jsplib.ini"
+
+            generate_dataset_from_jsplib(source_path, output_path, initial_job_fraction=1.0)
+            env = make_env(dataset_path=output_path)
+            observation, _ = env.reset()
+
+        self.assertEqual(env.observation_space.shape, (14,))
+        self.assertEqual(observation.shape, (14,))
+
+    def test_update_state_reports_no_event_deadlock(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dataset_path = Path(tmpdir) / "generated.ini"
+            generate_dataset(
+                dataset_path,
+                spec=DatasetSpec(
+                    jobs=2,
+                    work_centers=1,
+                    machines_per_work_center=1,
+                    min_operations=1,
+                    max_operations=1,
+                    min_processing_time=10,
+                    max_processing_time=20,
+                ),
+                seed=11,
+            )
+            env = make_env(dataset_path=dataset_path)
+            env.reset()
+            for job in env.world.jobs:
+                job.arrival_time = env.world.total_timestamp
+                job.CRJ = 0
+            for machine in env.world.machines:
+                machine.action = [0, 0, 0]
+                machine.request = False
+
+            with self.assertRaisesRegex(RuntimeError, "Simulation deadlock"):
+                env.update_state()
 
     def test_tiny_baseline_grid_writes_results(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -244,6 +290,42 @@ class ExperimentInfrastructureTest(unittest.TestCase):
         self.assertIn("Rank-biserial", summary_text)
         self.assertIn("Publication Use", summary_text)
 
+    def test_tiny_benchmark_dataset_study_writes_summary(self):
+        project_dir = Path(__file__).resolve().parents[1]
+        checkpoint_path = (
+            project_dir
+            / "Best_agent_hidden_layers_7neurons_per_layer_[207, 145, 78, 79, 205, 105, 217]_batch_size_32.pth"
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dataset_path = Path(tmpdir) / "benchmark_like.ini"
+            generate_dataset(
+                dataset_path,
+                spec=DatasetSpec(
+                    jobs=6,
+                    work_centers=2,
+                    machines_per_work_center=2,
+                    min_operations=2,
+                    max_operations=3,
+                    min_processing_time=10,
+                    max_processing_time=20,
+                ),
+                seed=11,
+            )
+            csv_path, summary_path = run_benchmark_dataset_study(
+                output_dir=Path(tmpdir) / "benchmark",
+                dataset_paths=[dataset_path],
+                checkpoint_paths=[checkpoint_path],
+                checkpoint_labels=["restored"],
+            )
+
+            csv_text = csv_path.read_text(encoding="utf-8")
+            summary_text = summary_path.read_text(encoding="utf-8")
+
+        self.assertIn("DQN", csv_text)
+        self.assertIn("restored", csv_text)
+        self.assertIn("Benchmark-Derived Dataset Study Summary", summary_text)
+        self.assertIn("DQN Against Baselines", summary_text)
+
     def test_tiny_policy_trace_writes_summary(self):
         project_dir = Path(__file__).resolve().parents[1]
         checkpoint_path = (
@@ -277,6 +359,41 @@ class ExperimentInfrastructureTest(unittest.TestCase):
         self.assertIn("dominant_action", csv_text)
         self.assertIn("Policy Trace Summary", summary_text)
         self.assertIn("Action Distribution", summary_text)
+
+    def test_tiny_checkpoint_policy_trace_writes_summary(self):
+        project_dir = Path(__file__).resolve().parents[1]
+        checkpoint_path = (
+            project_dir
+            / "Best_agent_hidden_layers_7neurons_per_layer_[207, 145, 78, 79, 205, 105, 217]_batch_size_32.pth"
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dataset_path = Path(tmpdir) / "generated.ini"
+            generate_dataset(
+                dataset_path,
+                spec=DatasetSpec(
+                    jobs=6,
+                    work_centers=2,
+                    machines_per_work_center=2,
+                    min_operations=2,
+                    max_operations=3,
+                    min_processing_time=10,
+                    max_processing_time=20,
+                ),
+                seed=11,
+            )
+            csv_path, summary_path = run_checkpoint_policy_trace_study(
+                output_dir=Path(tmpdir) / "trace",
+                checkpoint_paths=[checkpoint_path],
+                checkpoint_labels=["restored"],
+                dataset_paths=[dataset_path],
+            )
+
+            csv_text = csv_path.read_text(encoding="utf-8")
+            summary_text = summary_path.read_text(encoding="utf-8")
+
+        self.assertIn("dominant_action", csv_text)
+        self.assertIn("Checkpoint Policy Trace Summary", summary_text)
+        self.assertIn("Action Fractions", summary_text)
 
 
 if __name__ == "__main__":

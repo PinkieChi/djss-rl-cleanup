@@ -218,6 +218,11 @@ class Job_Shop_Env(Env):
 
       # determine and Compute the minimum of the key events: operation completion, job insertion, and machine failure
       min_event = min(closest_arrival_time, min_PT, closest_failure)
+      if min_event == 500000:
+        unfinished = sum(1 for job in self.jobs if job.CRJ != 1)
+        raise RuntimeError(
+          f"Simulation deadlock: no future arrival, processing completion, or machine failure while {unfinished} jobs remain unfinished."
+        )
 
        #The following code does consider 7 scenarios : a combination of the three events (operation completion, new job insertion, and machine breakdown)
       if min(closest_arrival_time, min_PT) > closest_failure : # Close Machine(s) Failure
@@ -918,6 +923,8 @@ class Scenario(BaseScenario):
   def expected_tardiness_rate(self, world, filtered_jobs):
     expected_tardy_operations = 0 # Initialize counter for expected tardy operations
     Total = sum([len(job.operations) for job in filtered_jobs]) # Total number of operations in the filtered jobs
+    if Total == 0:
+      return 0
     average_CT = int(np.mean([machine.action[1] for machine in world.machines])) # Average completion time of machines
     # Iterate over each job to estimate tardy operations
     for job in filtered_jobs:
@@ -935,6 +942,8 @@ class Scenario(BaseScenario):
   def actual_tardiness_rate(self, world, jobs):
     Ntard = 0 # Counter for tardy operations
     Total = sum([len(job.operations) for job in jobs]) # Total number of operations
+    if Total == 0:
+      return 0
     Ntard = sum([job.tardy_operations for job in jobs]) # Sum of tardy operations across jobs
     # Add operations from jobs that haven't started and are past their due date
     Ntard += sum([len(job.operations) for job in jobs if job.remaining_processing_time == job.processing_time and world.total_timestamp >= job.due_date])
@@ -1007,6 +1016,23 @@ class Scenario(BaseScenario):
       average_energy_consumption = np.mean(energy_consumption) / (10 * world.total_timestamp) if world.total_timestamp != 0 else 0
       #Info related to jobs
       jobs_in_the_buffer = [op[0].parent for op in world.ready_machine.legal_actions if op[0].parent.arrival_time <= world.total_timestamp]
+      average_CT = int(np.mean([machine.action[1] for machine in world.machines]))
+      if not jobs_in_the_buffer:
+        completion_rate = 0
+        actual_tardiness_rate = 0
+        expected_tardiness_rate = 0
+        average_CRJ_op = 0
+        std_CRJ_op = 0
+        average_CRJ_time = 0
+        std_CRJ_time = 0
+        actual_tardiness_rate_job = 0
+        expected_tardiness_rate_job = 0
+        min_critical_ratio = 0
+        world.previous_tardiness_rate = 0
+        if maintenance_integrated:
+          return np.array([PM_actions_counts_machine, CM_actions_counts_machine, failure_risk_machine, average_CT, average_energy_consumption, EC_machine, completion_rate, actual_tardiness_rate, expected_tardiness_rate, mean_utilization_op_rate, std_utilization_op_rate, average_CRJ_op, std_CRJ_op, average_CRJ_time, std_CRJ_time], dtype=np.float32)
+        else:
+          return np.array([1/world._lambda, world.DDT, len(world.jobs), average_CT, completion_rate, actual_tardiness_rate_job, expected_tardiness_rate_job, actual_tardiness_rate, expected_tardiness_rate, average_CRJ_op, std_CRJ_op, average_CRJ_time, std_CRJ_time, min_critical_ratio], dtype=np.float32)
       #Completion rate of all the operations
       total_operations = sum(len(job.operations) for job in jobs_in_the_buffer)
       completion_rate = sum([job.op_processed for job in jobs_in_the_buffer]) / total_operations
@@ -1027,7 +1053,6 @@ class Scenario(BaseScenario):
       #Actual Job tardiness rate
       actual_tardiness_rate_job = sum([1 for job in jobs_in_the_buffer if job.tardy_operations > 0]) / len(jobs_in_the_buffer)
       #Expected Job tardiness rate
-      average_CT = int(np.mean([machine.action[1] for machine in world.machines]))
       expected_tardiness_rate_job = sum([1 for job in jobs_in_the_buffer if world.total_timestamp < job.due_date <= world.total_timestamp + average_CT + job.remaining_processing_time]) / len(jobs_in_the_buffer)
       # Maximal/Minimal remaining time of the candidate jobs
       remaining_time = [job.remaining_processing_time/job.processing_time for job in jobs_in_the_buffer]

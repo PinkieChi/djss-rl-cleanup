@@ -1,0 +1,58 @@
+{
+  "arrival_rates": [
+    50,
+    100,
+    200
+  ],
+  "ddt_values": [
+    0.5,
+    1.0,
+    1.5
+  ],
+  "episodes": 500,
+  "initial_job_fraction": 0.5,
+  "jobs_values": [
+    20,
+    50,
+    100
+  ],
+  "machines_per_work_center": 3,
+  "max_operations": 10,
+  "max_processing_time": 120,
+  "min_operations": 6,
+  "min_processing_time": 60,
+  "study_type": "paper_study",
+  "test_instance_seeds": [
+    707,
+    808,
+    909
+  ],
+  "train_instance_seeds": [
+    101,
+    202
+  ],
+  "training_seeds": [
+    11,
+    22,
+    33
+  ],
+  "validation_every": 50,
+  "validation_instance_seeds": [
+    505,
+    606
+  ],
+  "variant_parameters": {
+    "dense": {
+      "epsilon_decay": 0.995,
+      "epsilon_min": 0.01,
+      "gamma": 0.99,
+      "learning_rate": 0.001,
+      "reward_mode": "dense_tardiness",
+      "train_start": 500
+    }
+  },
+  "variants": [
+    "dense"
+  ],
+  "work_centers": 5
+}
